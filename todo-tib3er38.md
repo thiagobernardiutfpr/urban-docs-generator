@@ -10,3 +10,10 @@
 - [x] Cobrir a emissão em coleta de insumos com teste automatizado de geração.
 - [x] Validar a emissão real e os links PDF/DOCX no processo do usuário após a publicação da correção.
 - [x] Emitir a versão autorizada do processo 49316/2026 e confirmar os arquivos gerados.
+- [x] Identificar o modelo DOCX oficial da certidão e seu vínculo ativo.
+- [x] Fazer a emissão preservar o layout do modelo fornecido.
+- [x] Validar uma nova versão da certidão com o modelo oficial.
+- [x] Remover valores demonstrativos remanescentes do modelo oficial da certidão.
+- [x] Aplicar o mapeamento de dados também no cabeçalho do modelo oficial da certidão.
+- [x] Confirmar que a versão 5 não mantém valores demonstrativos do modelo oficial.
+- [x] Confirmar ausência de valores demonstrativos também em cabeçalhos e rodapés da versão 5.

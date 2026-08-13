@@ -8,6 +8,10 @@ import { Geometry } from "wkx";
 import proj4 from "proj4";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { promisify } from "node:util";
 import { documentTypeLabels, getExtension, normalizeEnrollment, normalizeFieldName } from "../shared/urbanDocs";
 import { documentSchemas, getSchemaSections } from "../shared/documentFields";
 import { storageGetSignedUrl } from "./storage";
@@ -18,6 +22,7 @@ export type ExtractedLotData = Record<string, unknown> & {
 };
 
 type ImageAttachment = { name: string; content: Uint8Array; mimeType: string };
+const execFileAsync = promisify(execFile);
 
 function safeFilename(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]/g, "_").replace(/_+/g, "_").slice(0, 80) || "documento";
@@ -46,7 +51,7 @@ function firstField(fields: Record<string, string | number | boolean>, ...keys: 
 
 function replaceWordText(xml: string, sample: string, replacement: string) {
   const escapedSample = xmlEscape(sample);
-  if (xml.includes(escapedSample)) return xml.replaceAll(escapedSample, xmlEscape(replacement));
+  if (xml.includes(escapedSample)) return xml.replace(escapedSample, xmlEscape(replacement));
   const matcher = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g;
   const segments: Array<{ contentStart: number; contentEnd: number; text: string }> = [];
   let match: RegExpExecArray | null;
@@ -92,10 +97,33 @@ function applyLegacyOfficialMapping(documentType: keyof typeof documentTypeLabel
   const registry = firstField(fields, "matricula", "registro_imobiliario");
   const area = firstField(fields, "area", "area_lote", "area_imovel");
   const coordinates = firstField(fields, "coordenadas", "coordenadas_geograficas");
+  const company = firstField(fields, "empresa_empreendedora", "interessado", "requerente");
+  const taxpayerId = firstField(fields, "cnpj_cpf", "cnpj", "cpf");
+  const activity = firstField(fields, "cnae_atividades", "atividade");
+  const perimeter = firstField(fields, "perimetro_urbano_ou_zona_rural", "perimetro");
+  const compliance = firstField(fields, "enquadramento");
+  const protocol = firstField(fields, "protocolo");
+  const certificateNumber = firstField(fields, "numero_certidao", "numero_documento") ?? protocol;
   const replacements: Array<[string, string | undefined]> = [["8684/2025", firstField(fields, "protocolo")], ["86842/2025", firstField(fields, "protocolo")]];
   if (documentType === "laudo_viabilidade") replacements.push(["Estrada da Colônia Esperança", address], ["Gleba Pirapó", neighborhood], ["ZRCH – Zona Residencial de Chácaras", zone], ["268", lot]);
   if (documentType === "parecer_eiv") replacements.push(["CONDOMÍNIO RECANTO MUNDO NOVO", enterprise], ["LEBI CONSTRUTORA LTDA", firstField(fields, "interessado", "requerente")], ["Rua México, S/ N", address], ["Rua México", address], ["ZR3 – Zona Residencial Três", zone]);
   if (documentType === "diretriz_loteamento") replacements.push(["Rua Mutsumi Ohara Nishikawa", address], ["108-Remanescente/107-3/H-Remanescente", lot], ["449321.55L, 7393491.80N", coordinates], ["161.446,58m²", area], ["32.379", registry], ["ZR2 – Zona Residencial Dois", zone]);
+  if (documentType === "certidao_uso_ocupacao_solo") replacements.push(
+    ["77/2026", certificateNumber],
+    ["48337/2026", protocol],
+    ["NACIONAL GAS BUTANO DISTRIBUIDORA LTDA", company],
+    ["NACIONAL GAS BUTANO DISTRIBUIDORA LTDA", enterprise],
+    ["06.980.064/0110-36", taxpayerId],
+    ["46.82-6-00 - Comércio atacadista de gás liquefeito de petróleo (GLP);47.84-9-00 - Comércio varejista de gás liquefeito de petróleo (GLP);49.30-2-03 - Transporte rodoviário de produtos perigosos;52.11-7-99 - Depósitos de mercadorias para terceiros, exceto armazéns gerais e guarda-móveis;82.92-0-00 - Envasamento e empacotamento sob contrato.", activity],
+    ["Av. Francisco Kitano, 267 – Zona Norte – Gleba Pirapó – CEP: 86.806-385", address],
+    ["Latitude: -23.521097°; Longitude: -51.440117°", coordinates],
+    ["Lote N° 265-266/2", lot ?? "Não informado"],
+    ["Perímetro Urbano", perimeter],
+    ["ZI2 – Zona Industrial Dois", zone],
+    ["ZI2 – Zona Industrial Dois", zone],
+    ["PERMITIDO", compliance],
+    ["Apucarana, 7 de agosto de 2026", `Apucarana, ${firstField(fields, "data_emissao") ?? ""}`],
+  );
   let mapped = xml;
   for (const [sample, replacement] of replacements) {
     if (replacement) mapped = replaceWordText(mapped, sample, replacement);
@@ -104,6 +132,22 @@ function applyLegacyOfficialMapping(documentType: keyof typeof documentTypeLabel
     mapped = mapped.replace(/(<w:t[^>]*>)Gleba\s*(<\/w:t>[\s\S]*?<w:t[^>]*>)Pirapó(<\/w:t>)/, `$1$2${xmlEscape(neighborhood)}$3`);
   }
   return mapped;
+}
+
+async function convertDocxToPdf(docxBytes: Uint8Array, filename: string) {
+  const directory = await mkdtemp(path.join(tmpdir(), "urban-docs-pdf-"));
+  const sourcePath = path.join(directory, `${safeFilename(filename)}.docx`);
+  const pdfPath = sourcePath.replace(/\.docx$/i, ".pdf");
+  try {
+    await writeFile(sourcePath, docxBytes);
+    await execFileAsync("libreoffice", ["--headless", "--convert-to", "pdf:writer_pdf_Export", "--outdir", directory, sourcePath], { timeout: 100_000, maxBuffer: 2 * 1024 * 1024 });
+    return await readFile(pdfPath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "erro desconhecido";
+    throw new Error(`Não foi possível converter o modelo DOCX oficial para PDF: ${message}`);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 }
 
 function toLines(value: string, maxLength: number) {
@@ -273,8 +317,9 @@ export async function renderDocument(input: {
   let docxBytes: Buffer | undefined;
   if (input.templateBytes) {
     const zip = new PizZip(input.templateBytes);
-    const documentXml = zip.file("word/document.xml")?.asText() ?? "";
-    const hasSupportedMarker = Object.keys(fields).some((key) => documentXml.includes(`{${key}}`));
+    const textPartNames = Object.keys(zip.files).filter((name) => /^word\/(?:document|header\d+|footer\d+)\.xml$/.test(name));
+    const textParts = textPartNames.map((name) => ({ name, xml: zip.file(name)?.asText() ?? "" }));
+    const hasSupportedMarker = Object.keys(fields).some((key) => textParts.some((part) => part.xml.includes(`{${key}}`)));
     if (hasSupportedMarker) {
       try {
       const template = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
@@ -285,13 +330,20 @@ export async function renderDocument(input: {
       }
     }
     if (!docxBytes) {
-      const mappedXml = applyLegacyOfficialMapping(input.documentType, documentXml, fields);
-      if (mappedXml !== documentXml) {
-        zip.file("word/document.xml", mappedXml);
+      let hasLegacyMapping = false;
+      for (const part of textParts) {
+        const mappedXml = applyLegacyOfficialMapping(input.documentType, part.xml, fields);
+        if (mappedXml !== part.xml) {
+          zip.file(part.name, mappedXml);
+          hasLegacyMapping = true;
+        }
+      }
+      if (hasLegacyMapping) {
         docxBytes = zip.generate({ type: "nodebuffer", compression: "DEFLATE" });
       }
     }
   }
+  if (input.templateBytes && !docxBytes) throw new Error("O modelo DOCX oficial não possui marcadores ou mapeamentos compatíveis para esta certidão.");
   if (!docxBytes) {
     const sections = structuredSections(input.documentType, fields);
     const children: (Paragraph | Table)[] = [
@@ -309,6 +361,11 @@ export async function renderDocument(input: {
     }
     const document = new Document({ sections: [{ properties: {}, children }] });
     docxBytes = await Packer.toBuffer(document);
+  }
+
+  if (input.templateBytes) {
+    const pdfBytes = await convertDocxToPdf(docxBytes, safeFilename(title.toLocaleLowerCase("pt-BR")));
+    return { docxBytes, pdfBytes, filename: safeFilename(title.toLocaleLowerCase("pt-BR")) };
   }
 
   const pdf = await PDFDocument.create();

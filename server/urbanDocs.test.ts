@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { Document, Header, Packer, Paragraph } from "docx";
 import PizZip from "pizzip";
 import { canApproveEmission, canReviewAi, canTransitionRequestStatus, documentTypes, getExtension, isSpatialFile, isSupportedUpload, normalizeEnrollment, normalizeFieldName } from "../shared/urbanDocs";
 import { documentSchemas } from "../shared/documentFields";
@@ -52,6 +53,20 @@ describe("regras documentais urbanísticas", () => {
     expect(output.docxBytes.subarray(0, 2).toString()).toBe("PK");
     expect(Buffer.from(output.pdfBytes).subarray(0, 4).toString()).toBe("%PDF");
     expect(output.filename).toContain("certidao");
+  });
+
+  it("preserva o modelo de certidão legado e converte seu próprio layout para PDF", async () => {
+    const model = new Document({ sections: [{ headers: { default: new Header({ children: [new Paragraph("CERTIDÃO – Nº 77/2026 PROCESSO Nº 48337/2026")] }) }, children: [new Paragraph("Empresa / Empreendedor: NACIONAL GAS BUTANO DISTRIBUIDORA LTDA"), new Paragraph("Nome do Empreendimento: NACIONAL GAS BUTANO DISTRIBUIDORA LTDA"), new Paragraph("Lote / Quadra: Lote N° 265-266/2"), new Paragraph("Zoneamento: ZI2 – Zona Industrial Dois"), new Paragraph("O zoneamento é ZI2 – Zona Industrial Dois"), new Paragraph("Enquadramento: PERMITIDO")] }] });
+    const output = await renderDocument({ documentType: "certidao_uso_ocupacao_solo", templateBytes: await Packer.toBuffer(model), fields: { protocolo: "49316/2026", empresa_empreendedora: "Empreendimento Atual", empreendimento: "Condomínio Atual", zoneamento: "ZR2 - Zona Residencial Dois", enquadramento: "Permitido" } });
+    const xml = new PizZip(output.docxBytes).file("word/document.xml")?.asText() ?? "";
+    const headerXml = new PizZip(output.docxBytes).file("word/header1.xml")?.asText() ?? "";
+    expect(headerXml).toContain("49316/2026");
+    expect(xml).toContain("Empreendimento Atual");
+    expect(xml).toContain("Condomínio Atual");
+    expect(xml).toContain("Não informado");
+    expect(xml).toContain("ZR2 - Zona Residencial Dois");
+    expect(xml).toContain("Permitido");
+    expect(Buffer.from(output.pdfBytes).subarray(0, 4).toString()).toBe("%PDF");
   });
 
   it("estrutura as certidões de uso do solo, tombamento e desapropriação sem modelo DOCX", async () => {
