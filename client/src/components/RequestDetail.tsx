@@ -46,7 +46,7 @@ export default function RequestDetail({ requestId, startEditing = false }: { req
 
   const documentType = request.documentType as DocumentType;
   const latest = versions[0];
-  const canReissue = ["cross_referenced", "ready_for_review", "completed", "failed"].includes(request.status);
+  const canReissue = request.status !== "processing";
   const saveChanges = async () => {
     if (!draft.protocol.trim()) return toast.error("Informe o número do protocolo.");
     try {

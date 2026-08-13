@@ -91,4 +91,17 @@ describe("emissão com modelo oficial associado", () => {
     expect(result.docx.storageUrl).toContain(".docx");
     expect(result.pdf.storageUrl).toContain(".pdf");
   });
+
+  it("permite emitir um processo ainda em coleta de insumos", async () => {
+    mocks.getRequestById.mockResolvedValue({ id: 11, protocol: "PROC-11", status: "collecting", documentType: "certidao_uso_ocupacao_solo", enrollment: "114.184.1000", applicant: "Interessado", description: "Objeto", formData: {}, extractedData: null });
+    mocks.getActiveTemplate.mockResolvedValue(undefined);
+    const caller = appRouter.createCaller(context());
+
+    const result = await caller.generated.create({ requestId: 11 });
+
+    expect(mocks.renderDocument).toHaveBeenCalledWith(expect.objectContaining({ documentType: "certidao_uso_ocupacao_solo" }));
+    expect(mocks.updateRequestStatus).toHaveBeenCalledWith(1, 11, "processing");
+    expect(mocks.updateRequestStatus).toHaveBeenLastCalledWith(1, 11, "completed");
+    expect(result.generated).toMatchObject({ requestId: 11 });
+  });
 });
