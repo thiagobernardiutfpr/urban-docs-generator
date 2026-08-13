@@ -97,3 +97,20 @@
 - [x] Validar visualmente a etapa final no estado aprovado e assinado.
 - [x] Criar uma rota de demonstração que gere e exiba um PDF institucionalmente assinado sem persistir solicitação de teste.
 - [x] Adicionar teste positivo para signatures.create com aprovação válida, PDF assinado e metadados de digest registrados.
+- [x] Reproduzir e identificar a causa do botão de envio de modelo DOCX não concluir o upload.
+- [x] Corrigir o upload de modelos DOCX e apresentar estados claros de seleção, envio, sucesso e falha.
+- [x] Adicionar teste automatizado e validação visual do envio de modelo corrigido.
+- [x] Corrigir a sintaxe do componente de modelos e restabelecer a compilação após a reestruturação do upload.
+- [x] Tornar os testes de modelos DOCX resilientes à ausência temporária de anexos externos após a redefinição do ambiente e reexecutar a suíte.
+- [x] Documentar a causa-raiz do fluxo anterior de upload e a correção por seleção explícita seguida de confirmação de envio.
+- [x] Adicionar teste de regressão do upload DOCX cobrindo seleção, envio, sucesso e falha da mutação templates.upload.
+- [x] Corrigir a tipagem do helper de upload compartilhado e restabelecer a compilação do formulário de modelos.
+- [x] Ajustar a expectativa do teste de arquivo inválido para refletir a mensagem de validação final.
+- [x] Extrair e testar o componente visual do upload DOCX, cobrindo seleção, habilitação, envio e falha em duas etapas.
+- [x] Verificar explicitamente que o formulário de modelos usa o fluxo selecionar arquivo + confirmar envio, substituindo o upload direto no onChange.
+- [x] Corrigir a compatibilidade de renderização estática e as expectativas do teste visual de controles DOCX.
+- [x] Adicionar teste de integração do TemplateRegistry que simule falha de templates.upload e confirme a mensagem de erro ao usuário.
+- [x] Converter o teste de integração do TemplateRegistry para extensão JSX compatível com os mocks de componentes React.
+- [x] Incluir testes TSX na configuração da suíte para executar a integração visual do TemplateRegistry.
+- [x] Corrigir o mock hoisted de notificações no teste de integração do TemplateRegistry.
+- [x] Adicionar o escopo React necessário ao TemplateRegistry para o teste de integração em ambiente DOM.
