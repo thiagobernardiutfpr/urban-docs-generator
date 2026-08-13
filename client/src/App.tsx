@@ -5,6 +5,7 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
+import SignedPreviewDemo from "./pages/SignedPreviewDemo";
 import DocumentPreviewDemo from "./pages/DocumentPreviewDemo";
 
 function Router() {
@@ -17,6 +18,8 @@ function Router() {
       <Route path={"/modelos"} component={Home} />
       <Route path={"/bases"} component={Home} />
       <Route path={"/historico"} component={Home} />
+      <Route path={"/governanca"} component={Home} />
+      <Route path={"/assinatura-demonstracao"} component={SignedPreviewDemo} />
       <Route path={"/pre-visualizacao"} component={DocumentPreviewDemo} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}

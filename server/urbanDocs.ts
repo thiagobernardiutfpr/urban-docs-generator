@@ -7,6 +7,7 @@ import initSqlJs from "sql.js";
 import { Geometry } from "wkx";
 import proj4 from "proj4";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { documentTypeLabels, getExtension, normalizeEnrollment, normalizeFieldName } from "../shared/urbanDocs";
 import { documentSchemas, getSchemaSections } from "../shared/documentFields";
 import { storageGetSignedUrl } from "./storage";
@@ -361,4 +362,23 @@ export async function renderDocument(input: {
   }
   const pdfBytes = await pdf.save();
   return { docxBytes, pdfBytes, filename: safeFilename(title.toLocaleLowerCase("pt-BR")) };
+}
+
+export async function signPdfWithSystemStamp(input: { pdfBytes: Uint8Array; signerName: string; signerRole: string; signedAt?: Date }) {
+  const signedAt = input.signedAt ?? new Date();
+  const documentDigest = createHash("sha256").update(input.pdfBytes).digest("hex");
+  const signatureCode = `URB-${documentDigest.slice(0, 16).toUpperCase()}-${signedAt.getTime().toString(36).toUpperCase()}`;
+  const pdf = await PDFDocument.load(input.pdfBytes);
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const page = pdf.addPage([595.28, 841.89]);
+  const formattedDate = new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "medium" }).format(signedAt);
+  page.drawRectangle({ x: 42, y: 590, width: 511, height: 170, borderColor: rgb(0.18, 0.42, 0.32), borderWidth: 1.2, color: rgb(0.97, 0.985, 0.95) });
+  page.drawText("Assinatura institucional de sistema", { x: 66, y: 718, size: 18, font: bold, color: rgb(0.13, 0.28, 0.22) });
+  page.drawText("Documento aprovado e assinado após conferência humana no UrbanDocs.", { x: 66, y: 688, size: 10, font, color: rgb(0.2, 0.34, 0.28) });
+  page.drawText(`Assinante: ${input.signerName} (${input.signerRole})`, { x: 66, y: 653, size: 10, font: bold, color: rgb(0.13, 0.28, 0.22) });
+  page.drawText(`Data e hora: ${formattedDate}`, { x: 66, y: 632, size: 10, font, color: rgb(0.2, 0.34, 0.28) });
+  page.drawText(`Código de verificação: ${signatureCode}`, { x: 66, y: 611, size: 9, font, color: rgb(0.2, 0.34, 0.28) });
+  page.drawText(`SHA-256 do PDF original: ${documentDigest}`, { x: 66, y: 596, size: 7.6, font, color: rgb(0.26, 0.38, 0.32) });
+  return { signedPdfBytes: await pdf.save(), documentDigest, signatureCode };
 }

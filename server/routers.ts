@@ -1,15 +1,15 @@
 import { COOKIE_NAME } from "@shared/const";
-import { documentTypes, getExtension, isImageFile, isSpatialFile, isSupportedUpload, maxUploadBytes } from "@shared/urbanDocs";
+import { documentTypes, getExtension, isImageFile, isSpatialFile, isSupportedUpload, maxUploadBytes, userRoles } from "@shared/urbanDocs";
 import { getDemonstrationRequest } from "@shared/documentDemoData";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import * as db from "./db";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { adminProcedure, protectedProcedure, publicProcedure, roleProcedure, router } from "./_core/trpc";
 import { storagePut } from "./storage";
 import { analyzeUrbanInstruction } from "./urbanAI";
-import { downloadStorageBytes, extractGeoPackageLot, extractSpreadsheetLot, renderDocument } from "./urbanDocs";
+import { downloadStorageBytes, extractGeoPackageLot, extractSpreadsheetLot, renderDocument, signPdfWithSystemStamp } from "./urbanDocs";
 
 const filePayload = z.object({
   filename: z.string().min(1).max(255),
@@ -24,7 +24,7 @@ function readPayload(payload: z.infer<typeof filePayload>) {
   return buffer;
 }
 
-async function storeFile(input: { userId: number; requestId?: number; category: "input" | "image" | "template" | "reference" | "spatial" | "generated_docx" | "generated_pdf"; filename: string; mimeType: string; content: Buffer | Uint8Array }) {
+async function storeFile(input: { userId: number; requestId?: number; category: "input" | "image" | "template" | "reference" | "spatial" | "generated_docx" | "generated_pdf" | "generated_signed_pdf"; filename: string; mimeType: string; content: Buffer | Uint8Array }) {
   const keyPrefix = input.requestId ? `urban-docs/${input.userId}/requests/${input.requestId}` : `urban-docs/${input.userId}/library`;
   const { key, url } = await storagePut(`${keyPrefix}/${input.filename}`, input.content, input.mimeType);
   return db.createFileRecord({ userId: input.userId, requestId: input.requestId, category: input.category, filename: input.filename, mimeType: input.mimeType, byteSize: input.content.byteLength, storageKey: key, storageUrl: url });
@@ -115,14 +115,16 @@ export const appRouter = router({
       description: z.string().max(4000).optional(),
       fields: z.record(z.string(), z.string()).optional(),
       extractedData: z.record(z.string(), z.unknown()).optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
       try {
-        return await analyzeUrbanInstruction(input);
+        const analysis = await analyzeUrbanInstruction(input);
+        const audit = await db.createAiAudit({ userId: ctx.user.id, feature: "instruction_analysis", model: "gpt-5-mini", inputSnapshot: input, outputSnapshot: analysis });
+        return { ...analysis, auditId: audit.id };
       } catch (error) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error instanceof Error ? `Assistente de IA indisponível: ${error.message}` : "Assistente de IA indisponível." });
       }
     }),
-    chat: protectedProcedure.input(z.object({ messages: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().min(1).max(2500) })).min(1).max(10) })).mutation(async ({ input }) => {
+    chat: protectedProcedure.input(z.object({ messages: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().min(1).max(2500) })).min(1).max(10) })).mutation(async ({ ctx, input }) => {
       try {
         const { invokeLLM } = await import("./_core/llm");
         const response = await invokeLLM({
@@ -134,10 +136,66 @@ export const appRouter = router({
         });
         const answer = response.choices[0]?.message.content;
         if (typeof answer !== "string" || !answer.trim()) throw new Error("A IA não retornou uma resposta utilizável.");
-        return { answer };
+        const audit = await db.createAiAudit({ userId: ctx.user.id, feature: "global_assistant", model: "gpt-5-mini", inputSnapshot: { messages: input.messages }, outputSnapshot: { answer } });
+        return { answer, auditId: audit.id };
       } catch (error) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error instanceof Error ? `Assistente de IA indisponível: ${error.message}` : "Assistente de IA indisponível." });
       }
+    }),
+    contextual: protectedProcedure.input(z.object({ scope: z.enum(["templates", "spatial_sources", "final_review"]), context: z.string().min(1).max(5000) })).mutation(async ({ ctx, input }) => {
+      try {
+        const { invokeLLM } = await import("./_core/llm");
+        const response = await invokeLLM({
+          model: "gpt-5-mini",
+          messages: [
+            { role: "system", content: "Você é o Assistente UrbanDocs. Produza orientação curta e técnica para a equipe municipal, baseada somente no contexto fornecido. Não invente legislação, dados cadastrais, zoneamento, licenças, certidões ou conclusões administrativas. Liste pontos para conferência humana e deixe claro que a sugestão não autoriza emissão." },
+            { role: "user", content: `Escopo: ${input.scope}\nContexto: ${input.context}` },
+          ],
+        });
+        const answer = response.choices[0]?.message.content;
+        if (typeof answer !== "string" || !answer.trim()) throw new Error("A IA não retornou uma orientação utilizável.");
+        const audit = await db.createAiAudit({ userId: ctx.user.id, feature: `contextual_${input.scope}`, model: "gpt-5-mini", inputSnapshot: input, outputSnapshot: { answer } });
+        return { answer, auditId: audit.id };
+      } catch (error) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error instanceof Error ? `Assistente de IA indisponível: ${error.message}` : "Assistente de IA indisponível." });
+      }
+    }),
+    audits: roleProcedure(["reviewer", "approver", "admin"]).query(() => db.listAiAudits()),
+    reviewAudit: roleProcedure(["reviewer", "approver", "admin"]).input(z.object({ auditId: z.number().int().positive(), reviewStatus: z.enum(["applied", "edited", "rejected"]), reviewNote: z.string().max(2000).optional() })).mutation(({ ctx, input }) => db.reviewAiAudit(input.auditId, ctx.user.id, input.reviewStatus, input.reviewNote)),
+  }),
+  governance: router({
+    users: adminProcedure.query(() => db.listUsers()),
+    setRole: adminProcedure.input(z.object({ userId: z.number().int().positive(), role: z.enum(userRoles) })).mutation(({ input }) => db.setUserRole(input.userId, input.role)),
+  }),
+  approvals: router({
+    list: roleProcedure(["reviewer", "approver", "admin"]).query(() => db.listDocumentApprovals()),
+    decide: roleProcedure(["approver", "admin"]).input(z.object({ approvalId: z.number().int().positive(), status: z.enum(["approved", "rejected"]), decisionNote: z.string().max(2000).optional() })).mutation(({ ctx, input }) => db.decideDocumentApproval(input.approvalId, ctx.user.id, input.status, input.decisionNote)),
+  }),
+  signatures: router({
+    get: protectedProcedure.input(z.object({ generatedDocumentId: z.number().int().positive() })).query(({ input }) => db.getDocumentSignature(input.generatedDocumentId)),
+    list: roleProcedure(["reviewer", "approver", "admin"]).query(() => db.listDocumentSignatures()),
+    previewDemo: protectedProcedure.mutation(async ({ ctx }) => {
+      const demonstration = getDemonstrationRequest("certidao_tombamento");
+      const rendered = await renderDocument({ documentType: "certidao_tombamento", fields: { protocolo: demonstration.protocol, inscricao_imobiliaria: demonstration.enrollment, interessado: demonstration.applicant, objeto: demonstration.description, ...demonstration.fields } });
+      const signed = await signPdfWithSystemStamp({ pdfBytes: rendered.pdfBytes, signerName: ctx.user.name || "Aprovador UrbanDocs", signerRole: ctx.user.role });
+      const stamp = Date.now();
+      const prefix = `urban-docs/${ctx.user.id}/signature-demo`;
+      const pdf = await storagePut(`${prefix}/${rendered.filename}_${stamp}_assinado.pdf`, signed.signedPdfBytes, "application/pdf");
+      return { signedPdfUrl: pdf.url, signatureCode: signed.signatureCode, documentDigest: signed.documentDigest, signerName: ctx.user.name || "Aprovador UrbanDocs" };
+    }),
+    create: roleProcedure(["approver", "admin"]).input(z.object({ generatedDocumentId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const approval = await db.getApprovalByDocument(input.generatedDocumentId);
+      if (!approval || approval.status !== "approved") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "A assinatura exige uma aprovação final registrada." });
+      const generated = await db.getGeneratedDocumentById(input.generatedDocumentId);
+      if (!generated) throw new TRPCError({ code: "NOT_FOUND", message: "Documento gerado não encontrado." });
+      const originalPdf = await db.getFileByIdSystem(generated.pdfFileId);
+      if (!originalPdf) throw new TRPCError({ code: "NOT_FOUND", message: "PDF original não encontrado." });
+      const existing = await db.getDocumentSignature(input.generatedDocumentId);
+      if (existing) return { signature: existing, signedPdf: await db.getFileByIdSystem(existing.signedPdfFileId) };
+      const signed = await signPdfWithSystemStamp({ pdfBytes: await downloadStorageBytes(originalPdf.storageKey), signerName: ctx.user.name || "Aprovador UrbanDocs", signerRole: ctx.user.role });
+      const signedPdf = await storeFile({ userId: generated.userId, requestId: generated.requestId, category: "generated_signed_pdf", filename: `${originalPdf.filename.replace(/\.pdf$/i, "")}_assinado.pdf`, mimeType: "application/pdf", content: signed.signedPdfBytes });
+      const signature = await db.createDocumentSignature({ generatedDocumentId: generated.id, requestId: generated.requestId, signedById: ctx.user.id, signerName: ctx.user.name || "Aprovador UrbanDocs", signerRole: ctx.user.role, method: "urban-docs-system-sha256", documentDigest: signed.documentDigest, signatureCode: signed.signatureCode, signedPdfFileId: signedPdf.id });
+      return { signature, signedPdf };
     }),
   }),
   generated: router({
@@ -168,7 +226,8 @@ export const appRouter = router({
         const pdfFile = await storeFile({ userId: ctx.user.id, requestId: request.id, category: "generated_pdf", filename: `${rendered.filename}_v${Date.now()}.pdf`, mimeType: "application/pdf", content: rendered.pdfBytes });
         const generated = await db.createGeneratedDocument({ requestId: request.id, userId: ctx.user.id, templateId: template?.id, docxFileId: docxFile.id, pdfFileId: pdfFile.id, dataSnapshot: fields });
         await db.updateRequestStatus(ctx.user.id, request.id, "completed");
-        return { generated, docx: docxFile, pdf: pdfFile };
+        const approval = await db.createDocumentApproval({ generatedDocumentId: generated.id, requestId: request.id, requestedById: ctx.user.id });
+        return { generated, approval, docx: docxFile, pdf: pdfFile };
       } catch (error) {
         await db.updateRequestStatus(ctx.user.id, request.id, "failed");
         throw error;

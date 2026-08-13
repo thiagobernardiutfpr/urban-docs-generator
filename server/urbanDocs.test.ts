@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import PizZip from "pizzip";
-import { canTransitionRequestStatus, documentTypes, getExtension, isSpatialFile, isSupportedUpload, normalizeEnrollment, normalizeFieldName } from "../shared/urbanDocs";
+import { canApproveEmission, canReviewAi, canTransitionRequestStatus, documentTypes, getExtension, isSpatialFile, isSupportedUpload, normalizeEnrollment, normalizeFieldName } from "../shared/urbanDocs";
 import { documentSchemas } from "../shared/documentFields";
 import { getDemonstrationRequest } from "../shared/documentDemoData";
 import { getPdfPreviewUrl } from "../shared/documentPreview";
-import { projectPosition, renderDocument } from "./urbanDocs";
+import { projectPosition, renderDocument, signPdfWithSystemStamp } from "./urbanDocs";
 
 describe("regras documentais urbanísticas", () => {
   it("normaliza inscrições imobiliárias preservando alfanuméricos", () => {
@@ -106,6 +106,23 @@ describe("regras documentais urbanísticas", () => {
     expect(canTransitionRequestStatus("completed", "processing")).toBe(true);
     expect(canTransitionRequestStatus("draft", "completed")).toBe(false);
     expect(canTransitionRequestStatus("collecting", "completed")).toBe(false);
+  });
+
+  it("aplica acesso mínimo para revisão de IA e aprovação final", () => {
+    expect(canReviewAi("author")).toBe(false);
+    expect(canReviewAi("reviewer")).toBe(true);
+    expect(canApproveEmission("reviewer")).toBe(false);
+    expect(canApproveEmission("approver")).toBe(true);
+    expect(canApproveEmission("admin")).toBe(true);
+  });
+
+  it("cria uma cópia PDF assinada com digest SHA-256 e código verificável", async () => {
+    const output = await renderDocument({ documentType: "certidao_tombamento", fields: { protocolo: "TESTE-ASSINATURA", endereco: "Rua de Teste, 100" } });
+    const signature = await signPdfWithSystemStamp({ pdfBytes: output.pdfBytes, signerName: "Aprovador de Teste", signerRole: "approver", signedAt: new Date("2026-08-13T12:00:00Z") });
+    expect(signature.documentDigest).toMatch(/^[a-f0-9]{64}$/);
+    expect(signature.signatureCode).toMatch(/^URB-/);
+    expect(Buffer.from(signature.signedPdfBytes).subarray(0, 4).toString()).toBe("%PDF");
+    expect(signature.signedPdfBytes.byteLength).toBeGreaterThan(output.pdfBytes.byteLength);
   });
 
   it("reprojeta coordenadas UTM do GeoPackage para longitude e latitude de mapa", () => {

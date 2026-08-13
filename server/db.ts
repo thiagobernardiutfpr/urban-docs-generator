@@ -1,6 +1,6 @@
-import { and, desc, eq, max } from "drizzle-orm";
+import { and, desc, eq, isNull, max } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { documentFiles, documentReferences, documentRequests, documentTemplates, generatedDocuments, InsertUser, spatialSources, users } from "../drizzle/schema";
+import { aiAuditEvents, documentApprovals, documentFiles, documentReferences, documentRequests, documentSignatures, documentTemplates, generatedDocuments, InsertUser, spatialSources, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { canTransitionRequestStatus, type RequestStatus } from "../shared/urbanDocs";
 
@@ -226,6 +226,13 @@ export async function getFileById(userId: number, id: number) {
   return result[0];
 }
 
+export async function getFileByIdSystem(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(documentFiles).where(eq(documentFiles.id, id)).limit(1);
+  return result[0];
+}
+
 export async function createSpatialSource(input: typeof spatialSources.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível.");
@@ -272,4 +279,97 @@ export async function listGeneratedDocuments(userId: number, requestId: number) 
     const [docx, pdf] = await Promise.all([getFileById(userId, document.docxFileId), getFileById(userId, document.pdfFileId)]);
     return { ...document, docxUrl: docx?.storageUrl, pdfUrl: pdf?.storageUrl, docxFilename: docx?.filename, pdfFilename: pdf?.filename };
   }));
+}
+
+export async function createAiAudit(input: typeof aiAuditEvents.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  const result = await db.insert(aiAuditEvents).values(input);
+  const row = await db.select().from(aiAuditEvents).where(eq(aiAuditEvents.id, Number(result[0].insertId))).limit(1);
+  return row[0];
+}
+
+export async function listAiAudits() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(aiAuditEvents).orderBy(desc(aiAuditEvents.createdAt));
+}
+
+export async function reviewAiAudit(auditId: number, reviewerId: number, reviewStatus: "applied" | "edited" | "rejected", reviewNote?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  await db.update(aiAuditEvents).set({ reviewStatus, reviewedById: reviewerId, reviewNote, reviewedAt: new Date() }).where(eq(aiAuditEvents.id, auditId));
+  const row = await db.select().from(aiAuditEvents).where(eq(aiAuditEvents.id, auditId)).limit(1);
+  return row[0];
+}
+
+export async function createDocumentApproval(input: typeof documentApprovals.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  const result = await db.insert(documentApprovals).values(input);
+  const row = await db.select().from(documentApprovals).where(eq(documentApprovals.id, Number(result[0].insertId))).limit(1);
+  return row[0];
+}
+
+export async function listDocumentApprovals() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(documentApprovals).orderBy(desc(documentApprovals.createdAt));
+}
+
+export async function getApprovalByDocument(generatedDocumentId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const row = await db.select().from(documentApprovals).where(eq(documentApprovals.generatedDocumentId, generatedDocumentId)).orderBy(desc(documentApprovals.createdAt)).limit(1);
+  return row[0];
+}
+
+export async function decideDocumentApproval(id: number, decidedById: number, status: "approved" | "rejected", decisionNote?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  await db.update(documentApprovals).set({ status, decidedById, decisionNote, decidedAt: new Date() }).where(and(eq(documentApprovals.id, id), eq(documentApprovals.status, "pending")));
+  const row = await db.select().from(documentApprovals).where(eq(documentApprovals.id, id)).limit(1);
+  return row[0];
+}
+
+export async function getGeneratedDocumentById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const row = await db.select().from(generatedDocuments).where(eq(generatedDocuments.id, id)).limit(1);
+  return row[0];
+}
+
+export async function createDocumentSignature(input: typeof documentSignatures.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  const result = await db.insert(documentSignatures).values(input);
+  const row = await db.select().from(documentSignatures).where(eq(documentSignatures.id, Number(result[0].insertId))).limit(1);
+  return row[0];
+}
+
+export async function getDocumentSignature(generatedDocumentId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const row = await db.select().from(documentSignatures).where(and(eq(documentSignatures.generatedDocumentId, generatedDocumentId), isNull(documentSignatures.revokedAt))).orderBy(desc(documentSignatures.createdAt)).limit(1);
+  return row[0];
+}
+
+export async function listDocumentSignatures() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(documentSignatures).orderBy(desc(documentSignatures.createdAt));
+}
+
+export async function listUsers() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(users).orderBy(desc(users.lastSignedIn));
+}
+
+export async function setUserRole(id: number, role: "author" | "reviewer" | "approver" | "admin") {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  await db.update(users).set({ role }).where(eq(users.id, id));
+  const row = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  return row[0];
 }

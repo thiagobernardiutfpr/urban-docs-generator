@@ -10,9 +10,11 @@ const mocks = vi.hoisted(() => ({
   listFilesForRequest: vi.fn(),
   createFileRecord: vi.fn(),
   createGeneratedDocument: vi.fn(),
+  createDocumentApproval: vi.fn(),
   storagePut: vi.fn(),
   downloadStorageBytes: vi.fn(),
   renderDocument: vi.fn(),
+  signPdfWithSystemStamp: vi.fn(),
 }));
 
 vi.mock("./db", () => ({
@@ -23,10 +25,11 @@ vi.mock("./db", () => ({
   listFilesForRequest: mocks.listFilesForRequest,
   createFileRecord: mocks.createFileRecord,
   createGeneratedDocument: mocks.createGeneratedDocument,
+  createDocumentApproval: mocks.createDocumentApproval,
 }));
 
 vi.mock("./storage", () => ({ storagePut: mocks.storagePut }));
-vi.mock("./urbanDocs", () => ({ downloadStorageBytes: mocks.downloadStorageBytes, renderDocument: mocks.renderDocument }));
+vi.mock("./urbanDocs", () => ({ downloadStorageBytes: mocks.downloadStorageBytes, renderDocument: mocks.renderDocument, signPdfWithSystemStamp: mocks.signPdfWithSystemStamp }));
 
 import { appRouter } from "./routers";
 
@@ -50,6 +53,7 @@ describe("emissão com modelo oficial associado", () => {
     let fileId = 700;
     mocks.createFileRecord.mockImplementation(async (input: Record<string, unknown>) => ({ ...input, id: fileId++ }));
     mocks.createGeneratedDocument.mockImplementation(async (input: Record<string, unknown>) => ({ ...input, id: 900 }));
+    mocks.createDocumentApproval.mockImplementation(async (input: Record<string, unknown>) => ({ ...input, id: 901, status: "pending" }));
   });
 
   it.each([

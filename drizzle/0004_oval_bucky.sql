@@ -1,0 +1,2 @@
+ALTER TABLE `documentFiles` MODIFY COLUMN `category` enum('input','image','template','reference','spatial','generated_docx','generated_pdf','generated_signed_pdf') NOT NULL;--> statement-breakpoint
+ALTER TABLE `documentSignatures` ADD `signedPdfFileId` int NOT NULL;

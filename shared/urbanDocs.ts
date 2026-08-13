@@ -15,6 +15,24 @@ export const documentTypes = [
 
 export type DocumentType = (typeof documentTypes)[number];
 
+export const userRoles = ["author", "reviewer", "approver", "admin"] as const;
+export type UserRole = (typeof userRoles)[number];
+
+export const roleLabels: Record<UserRole, string> = {
+  author: "Elaborador",
+  reviewer: "Revisor",
+  approver: "Aprovador",
+  admin: "Administrador",
+};
+
+export function canReviewAi(role: UserRole) {
+  return role === "reviewer" || role === "approver" || role === "admin";
+}
+
+export function canApproveEmission(role: UserRole) {
+  return role === "approver" || role === "admin";
+}
+
 export const documentTypeLabels: Record<DocumentType, string> = {
   certidao_uso_ocupacao_solo: "Certidão de uso e ocupação do solo",
   laudo_viabilidade: "Laudo de viabilidade",

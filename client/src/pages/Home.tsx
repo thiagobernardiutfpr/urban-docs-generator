@@ -5,6 +5,8 @@ import { SpatialSourceAdministration, TemplateAdministration } from "@/component
 import TemplateRegistry from "@/components/TemplateRegistry";
 import ReferenceRegistry from "@/components/ReferenceRegistry";
 import { OperationalDashboard, RequestsWorkspace } from "@/components/LiveRequests";
+import GovernanceCenter from "@/components/GovernanceCenter";
+import AIContextInsight from "@/components/AIContextInsight";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -177,7 +179,8 @@ export default function Home() {
   if (location === "/nova-solicitacao") content = <NewRequest />;
   if (location === "/solicitacoes") content = <RequestsWorkspace />;
   if (location === "/modelos") content = <><TemplateRegistry /><ReferenceRegistry /></>;
-  if (location === "/bases") content = <SpatialSourceAdministration />;
+  if (location === "/bases") content = <div className="space-y-6"><AIContextInsight scope="spatial_sources" title="Conferência assistida das fontes territoriais" context="Oriente a conferência de planilhas e GeoPackages: inscrição imobiliária, data de atualização, sistema de referência e origem da fonte. Não valide resultados cadastrais ou territoriais." /><SpatialSourceAdministration /></div>;
   if (location === "/historico") content = <DocumentHistory />;
+  if (location === "/governanca") content = <GovernanceCenter />;
   return <DashboardLayout>{content}</DashboardLayout>;
 }

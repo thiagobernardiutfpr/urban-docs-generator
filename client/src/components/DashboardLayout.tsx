@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { Archive, Building2, Database, FileText, History, LayoutDashboard, LibraryBig, LogIn, LogOut, PanelLeft, Plus, Settings2 } from "lucide-react";
+import { Archive, Building2, Database, FileText, History, LayoutDashboard, LibraryBig, LogIn, LogOut, PanelLeft, Plus, Settings2, ShieldCheck } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -35,6 +35,7 @@ const menuItems = [
   { icon: LibraryBig, label: "Modelos", path: "/modelos" },
   { icon: Database, label: "Bases territoriais", path: "/bases" },
   { icon: History, label: "Histórico", path: "/historico" },
+  { icon: ShieldCheck, label: "Governança", path: "/governanca" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

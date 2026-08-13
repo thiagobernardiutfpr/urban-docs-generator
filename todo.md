@@ -79,3 +79,21 @@
 - [x] Registrar formalmente a inspeção visual da pré-visualização incorporada do PDF resultante da emissão de demonstração.
 - [x] Criar e confirmar no repositório a evidência da emissão de demonstração, incluindo o consumo de `output.pdf.storageUrl` pelo componente final.
 - [x] Confirmar a inspeção visual da rota de emissão de demonstração por meio da leitura do arquivo de evidência salvo.
+- [x] Criar a habilidade reutilizável de automação documental urbanística com instruções, controles e critérios de validação.
+- [x] Modelar papéis operacionais de elaborador, revisor, aprovador e administrador, com permissões aplicadas no servidor.
+- [x] Criar trilha auditável e revisável de todas as sugestões, análises e rascunhos produzidos pela IA.
+- [x] Estender a IA a insights de acervo, dados territoriais, solicitação e revisão final, mantendo validação humana obrigatória.
+- [x] Adicionar estado de aprovação final e restringir a emissão assinada a usuários aprovadores ou administradores.
+- [x] Implementar assinatura digital de sistema com metadados verificáveis e trilha de auditoria após a pré-visualização.
+- [x] Criar telas para revisão de sugestões de IA, aprovações pendentes, auditoria e assinatura do documento.
+- [x] Cobrir permissões, auditoria, assinatura e fluxos de IA com testes automatizados e validação visual.
+- [x] Corrigir os mocks de geração para contemplar a criação da aprovação pendente e restabelecer a suíte completa.
+- [x] Ajustar os testes da pré-visualização final para isolar os controles de aprovação que dependem do contexto tRPC.
+- [x] Recuperar a compilação de produção após a interrupção por memória no empacotamento da interface.
+- [x] Recriar e validar a habilidade urban-document-workflow no repositório de habilidades reutilizáveis.
+- [x] Integrar assistência de IA contextual às áreas de modelos, bases territoriais e revisão final, mantendo revisão humana.
+- [x] Expandir a Central de Governança para exibir histórico completo de auditorias, aprovações e assinaturas.
+- [x] Adicionar testes positivos para revisão de auditoria, alteração de papel, decisão de aprovação e criação de assinatura.
+- [x] Validar visualmente a etapa final no estado aprovado e assinado.
+- [x] Criar uma rota de demonstração que gere e exiba um PDF institucionalmente assinado sem persistir solicitação de teste.
+- [x] Adicionar teste positivo para signatures.create com aprovação válida, PDF assinado e metadados de digest registrados.
