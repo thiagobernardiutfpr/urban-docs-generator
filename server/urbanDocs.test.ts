@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import PizZip from "pizzip";
-import { canTransitionRequestStatus, getExtension, isSpatialFile, isSupportedUpload, normalizeEnrollment, normalizeFieldName } from "../shared/urbanDocs";
+import { canTransitionRequestStatus, documentTypes, getExtension, isSpatialFile, isSupportedUpload, normalizeEnrollment, normalizeFieldName } from "../shared/urbanDocs";
 import { documentSchemas } from "../shared/documentFields";
+import { getDemonstrationRequest } from "../shared/documentDemoData";
 import { projectPosition, renderDocument } from "./urbanDocs";
 
 describe("regras documentais urbanísticas", () => {
@@ -58,6 +59,38 @@ describe("regras documentais urbanísticas", () => {
     expect(documentSchemas.certidao_uso_ocupacao_solo.fields.some((field) => field.key === "cnae_atividades")).toBe(true);
     expect(documentSchemas.certidao_tombamento.reviewItems).toContain("Consultar base de bens tombados e áreas de entorno.");
     expect(documentSchemas.certidao_desapropriacao.reviewItems).toContain("Consultar decretos, DUP e interesse social vigentes.");
+  });
+
+  it("preenche valores de demonstração para todos os campos obrigatórios da tipologia selecionada", () => {
+    const demonstration = getDemonstrationRequest("certidao_tombamento");
+    expect(demonstration.protocol).toContain("TESTE");
+    expect(demonstration.description).toContain("DADOS DE TESTE");
+    expect(documentSchemas.certidao_tombamento.fields.filter((field) => field.required).every((field) => Boolean(demonstration.fields[field.key]))).toBe(true);
+    expect(demonstration.fields.resultado_tombamento).toContain("DADO DE TESTE");
+  });
+
+  it("preenche todos os campos obrigatórios para cada tipologia do catálogo", () => {
+    for (const type of documentTypes) {
+      const demonstration = getDemonstrationRequest(type);
+      const requiredFields = documentSchemas[type].fields.filter((field) => field.required);
+      expect(demonstration.protocol).toBeTruthy();
+      expect(demonstration.enrollment).toBeTruthy();
+      expect(demonstration.applicant).toBeTruthy();
+      expect(requiredFields.every((field) => Boolean(demonstration.fields[field.key]))).toBe(true);
+    }
+  });
+
+  it("gera bytes DOCX e PDF reais para uma certidão preenchida automaticamente", async () => {
+    const demonstration = getDemonstrationRequest("certidao_desapropriacao");
+    const output = await renderDocument({
+      documentType: "certidao_desapropriacao",
+      fields: { protocolo: demonstration.protocol, inscricao_imobiliaria: demonstration.enrollment, interessado: demonstration.applicant, objeto: demonstration.description, ...demonstration.fields },
+    });
+    const documentXml = new PizZip(output.docxBytes).file("word/document.xml")?.asText() ?? "";
+    expect(output.docxBytes.subarray(0, 2).toString()).toBe("PK");
+    expect(Buffer.from(output.pdfBytes).subarray(0, 4).toString()).toBe("%PDF");
+    expect(documentXml).toContain("Consulta oficial");
+    expect(documentXml).toContain(demonstration.fields.resultado_desapropriacao);
   });
 
   it("permite somente transições coerentes entre etapas de processamento", () => {

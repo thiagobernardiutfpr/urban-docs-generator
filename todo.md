@@ -47,3 +47,9 @@
 - [x] Confirmar a persistência e o conteúdo da documentação de validação visual do formulário por tipologia.
 - [x] Validar visualmente, com documentação consolidada, os formulários de parecer EIV, diretriz de loteamento, laudo de viabilidade, tombamento e desapropriação.
 - [x] Confirmar no repositório a documentação consolidada da validação visual das cinco tipologias representativas.
+- [x] Definir valores de demonstração coerentes para os campos comuns e específicos de cada tipologia.
+- [x] Adicionar botão de preenchimento automático para teste no fluxo de nova solicitação.
+- [x] Validar o preenchimento automático e sua compatibilidade com os campos obrigatórios e a emissão.
+- [x] Testar valores de demonstração em todas as tipologias, confirmando o preenchimento dos campos obrigatórios.
+- [x] Testar o fluxo de emissão estruturada usando valores de demonstração, com geração de DOCX e PDF.
+- [x] Validar com renderização real os bytes DOCX e PDF de uma certidão estruturada preenchida por dados de demonstração.

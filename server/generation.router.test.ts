@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
+import { getDemonstrationRequest } from "../shared/documentDemoData";
 
 const mocks = vi.hoisted(() => ({
   getRequestById: vi.fn(),
@@ -65,6 +66,24 @@ describe("emissão com modelo oficial associado", () => {
     expect(mocks.getActiveTemplate).toHaveBeenCalledWith(1, documentType);
     expect(mocks.renderDocument).toHaveBeenCalledWith(expect.objectContaining({ documentType, templateBytes: expect.any(Uint8Array) }));
     expect(mocks.createGeneratedDocument).toHaveBeenCalledWith(expect.objectContaining({ templateId, requestId }));
+    expect(result.docx.storageUrl).toContain(".docx");
+    expect(result.pdf.storageUrl).toContain(".pdf");
+  });
+
+  it("emite uma certidão estruturada sem modelo DOCX a partir de dados de demonstração", async () => {
+    const demonstration = getDemonstrationRequest("certidao_tombamento");
+    mocks.getRequestById.mockResolvedValue({ id: 10, protocol: demonstration.protocol, documentType: "certidao_tombamento", enrollment: demonstration.enrollment, applicant: demonstration.applicant, description: demonstration.description, formData: demonstration.fields, extractedData: { zoneamento: "ZR-3" } });
+    mocks.getActiveTemplate.mockResolvedValue(undefined);
+    const caller = appRouter.createCaller(context());
+
+    const result = await caller.generated.create({ requestId: 10 });
+
+    expect(mocks.renderDocument).toHaveBeenCalledWith(expect.objectContaining({
+      documentType: "certidao_tombamento",
+      templateBytes: undefined,
+      fields: expect.objectContaining({ resultado_tombamento: demonstration.fields.resultado_tombamento, protocolo: demonstration.protocol }),
+    }));
+    expect(mocks.createGeneratedDocument).toHaveBeenCalledWith(expect.objectContaining({ templateId: undefined, requestId: 10 }));
     expect(result.docx.storageUrl).toContain(".docx");
     expect(result.pdf.storageUrl).toContain(".pdf");
   });
