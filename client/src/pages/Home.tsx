@@ -179,7 +179,7 @@ export default function Home() {
   let content: React.ReactNode = <OperationalDashboard />;
   if (location === "/nova-solicitacao") content = <NewRequest />;
   if (location === "/solicitacoes") content = <RequestsWorkspace />;
-  if (location === "/processo") content = <RequestDetail requestId={Number(new URLSearchParams(window.location.search).get("id"))} />;
+  if (location === "/processo") { const search = new URLSearchParams(window.location.search); content = <RequestDetail requestId={Number(search.get("id"))} startEditing={search.get("editar") === "1"} />; }
   if (location === "/modelos") content = <><TemplateRegistry /><ReferenceRegistry /></>;
   if (location === "/bases") content = <div className="space-y-6"><AIContextInsight scope="spatial_sources" title="Conferência assistida das fontes territoriais" context="Oriente a conferência de planilhas e GeoPackages: inscrição imobiliária, data de atualização, sistema de referência e origem da fonte. Não valide resultados cadastrais ou territoriais." /><SpatialSourceAdministration /></div>;
   if (location === "/historico") content = <DocumentHistory />;

@@ -19,7 +19,7 @@ const statusLabel: Record<string, string> = {
 
 type Draft = { protocol: string; enrollment: string; applicant: string; description: string; formData: Record<string, string> };
 
-export default function RequestDetail({ requestId }: { requestId: number }) {
+export default function RequestDetail({ requestId, startEditing = false }: { requestId: number; startEditing?: boolean }) {
   const [, setLocation] = useLocation();
   const { isAuthenticated } = useAuth();
   const utils = trpc.useUtils();
@@ -27,7 +27,7 @@ export default function RequestDetail({ requestId }: { requestId: number }) {
   const { data: versions = [], isLoading: versionsLoading } = trpc.generated.list.useQuery({ requestId }, { enabled: Boolean(request) });
   const update = trpc.requests.update.useMutation();
   const reissue = trpc.generated.create.useMutation();
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(startEditing);
   const [draft, setDraft] = useState<Draft>({ protocol: "", enrollment: "", applicant: "", description: "", formData: {} });
 
   useEffect(() => {
@@ -35,6 +35,10 @@ export default function RequestDetail({ requestId }: { requestId: number }) {
     const formData = Object.fromEntries(Object.entries((request.formData ?? {}) as Record<string, unknown>).map(([key, value]) => [key, String(value ?? "")]));
     setDraft({ protocol: request.protocol, enrollment: request.enrollment ?? "", applicant: request.applicant ?? "", description: request.description ?? "", formData });
   }, [request]);
+
+  useEffect(() => {
+    if (startEditing) setEditing(true);
+  }, [startEditing]);
 
   if (!isAuthenticated) return <div className="mx-auto max-w-3xl rounded-2xl border border-dashed border-[#ccd8c9] bg-[#fbfbf7] px-5 py-10 text-center text-[11px] leading-5 text-[#74877f]">Entre com sua conta para abrir processos do acervo técnico.</div>;
   if (isLoading) return <div className="mx-auto max-w-3xl py-16 text-center text-[11px] text-[#74877f]">Carregando processo…</div>;

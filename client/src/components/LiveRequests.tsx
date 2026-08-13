@@ -1,12 +1,14 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 import { documentTypeLabels, type DocumentType } from "@shared/urbanDocs";
-import { ArrowRight, CheckCircle2, CircleDashed, Clock3, Eye, FileCheck2, FileText, Plus, Search } from "lucide-react";
+import { ArrowRight, CheckCircle2, CircleDashed, Clock3, Download, Eye, FileCheck2, FilePenLine, FileText, Loader2, MoreHorizontal, Plus, RefreshCw, Search } from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { useLocation } from "wouter";
 
 const statusLabel: Record<string, string> = {
@@ -29,6 +31,23 @@ const statusTone: Record<string, string> = {
   failed: "bg-[#f6e1dc] text-[#994331]",
 };
 
+function RequestActions({ requestId, status }: { requestId: number; status: string }) {
+  const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
+  const { data: versions = [], isLoading } = trpc.generated.list.useQuery({ requestId });
+  const reissue = trpc.generated.create.useMutation({
+    onSuccess: async () => {
+      await Promise.all([utils.generated.list.invalidate({ requestId }), utils.requests.list.invalidate()]);
+      toast.success("Nova versão emitida para o processo.");
+    },
+    onError: (error) => toast.error(error.message || "Não foi possível reemitir o processo."),
+  });
+  const latest = versions[0];
+  const canReissue = ["cross_referenced", "ready_for_review", "completed", "failed"].includes(status);
+
+  return <div className="flex min-w-[190px] justify-end gap-1.5"><Button variant="outline" size="sm" onClick={() => setLocation(`/processo?id=${requestId}`)} className="h-8 rounded-lg border-[#dbe3d8] bg-white px-2.5 text-[9px] text-[#426055]"><Eye className="mr-1 h-3 w-3" />Abrir</Button><Button variant="outline" size="sm" onClick={() => setLocation(`/processo?id=${requestId}&editar=1`)} className="h-8 rounded-lg border-[#dbe3d8] bg-white px-2.5 text-[9px] text-[#426055]"><FilePenLine className="mr-1 h-3 w-3" />Editar</Button><DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Mais ações do processo" className="h-8 w-8 rounded-lg border-[#dbe3d8] bg-white text-[#426055]"><MoreHorizontal className="h-3.5 w-3.5" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-[180px]"><DropdownMenuItem disabled={isLoading || reissue.isPending || !canReissue} onSelect={() => reissue.mutate({ requestId })}>{reissue.isPending ? <Loader2 className="animate-spin" /> : <RefreshCw />}Reemitir</DropdownMenuItem>{latest?.pdfUrl && <DropdownMenuItem asChild><a href={latest.pdfUrl} download target="_blank" rel="noreferrer"><Download />Exportar PDF</a></DropdownMenuItem>}{latest?.docxUrl && <DropdownMenuItem asChild><a href={latest.docxUrl} download target="_blank" rel="noreferrer"><FileText />Exportar DOCX</a></DropdownMenuItem>}{!latest && <DropdownMenuItem disabled>Nenhuma versão disponível para exportação</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu></div>;
+}
+
 function RequestTable({ compact = false }: { compact?: boolean }) {
   const [, setLocation] = useLocation();
   const { isAuthenticated } = useAuth();
@@ -44,7 +63,7 @@ function RequestTable({ compact = false }: { compact?: boolean }) {
   if (!isAuthenticated) return <div className="rounded-2xl border border-dashed border-[#ccd8c9] bg-[#fbfbf7] px-5 py-10 text-center text-[11px] leading-5 text-[#74877f]">Entre com sua conta para consultar as solicitações do seu acervo técnico.</div>;
   return <div className="rounded-[20px] border border-[#dde4d9] bg-[#fcfbf7] p-5 shadow-[0_12px_32px_rgba(40,64,54,.04)] md:p-6">
     {!compact && <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div className="relative max-w-md flex-1"><Search className="absolute left-3 top-3 h-4 w-4 text-[#91a099]" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar protocolo, inscrição ou interessado" className="h-10 rounded-xl border-[#dae2d7] bg-white pl-9 text-[11px]" /></div><Select value={status} onValueChange={setStatus}><SelectTrigger className="h-10 w-[190px] rounded-xl border-[#dae2d7] bg-white text-[11px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos os status</SelectItem>{Object.entries(statusLabel).map(([key, label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent></Select></div>}
-    <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-left"><thead><tr className="border-b border-[#e3e9df] font-mono-ui text-[9px] uppercase tracking-[.13em] text-[#81938c]"><th className="pb-3 font-medium">Processo</th><th className="pb-3 font-medium">Tipo documental</th><th className="pb-3 font-medium">Inscrição</th><th className="pb-3 font-medium">Atualização</th><th className="pb-3 font-medium">Status</th><th className="pb-3 text-right font-medium">Ações</th></tr></thead><tbody>{isLoading && <tr><td colSpan={6} className="py-10 text-center text-[11px] text-[#7d8d86]">Carregando solicitações…</td></tr>}{!isLoading && visible.length === 0 && <tr><td colSpan={6} className="py-10 text-center text-[11px] text-[#7d8d86]">Nenhuma solicitação encontrada para os filtros atuais.</td></tr>}{visible.map((request) => <tr key={request.id} className="border-b border-[#edf0e9] last:border-0"><td className="py-4"><p className="text-[11px] font-bold text-[#34564b]">{request.protocol}</p><p className="mt-1 text-[10px] text-[#71847e]">{request.applicant || "Interessado não informado"}</p></td><td className="py-4 text-[11px] text-[#556e66]">{documentTypeLabels[request.documentType as DocumentType] ?? request.documentType}</td><td className="py-4 font-mono-ui text-[10px] text-[#506960]">{request.enrollment || "—"}</td><td className="py-4 text-[10px] text-[#788c85]">{new Date(request.updatedAt).toLocaleDateString("pt-BR")}</td><td className="py-4"><Badge className={`rounded-full border-0 px-2.5 py-1 text-[9px] font-semibold shadow-none ${statusTone[request.status] ?? statusTone.draft}`}>{statusLabel[request.status] ?? request.status}</Badge></td><td className="py-4 text-right"><Button variant="outline" size="sm" onClick={() => setLocation(`/processo?id=${request.id}`)} className="h-8 rounded-lg border-[#dbe3d8] bg-white px-2.5 text-[9px] text-[#426055]"><Eye className="mr-1 h-3 w-3" />Abrir</Button></td></tr>)}</tbody></table></div>
+    <div className="overflow-x-auto"><table className="w-full min-w-[950px] text-left"><thead><tr className="border-b border-[#e3e9df] font-mono-ui text-[9px] uppercase tracking-[.13em] text-[#81938c]"><th className="pb-3 font-medium">Processo</th><th className="pb-3 font-medium">Tipo documental</th><th className="pb-3 font-medium">Inscrição</th><th className="pb-3 font-medium">Atualização</th><th className="pb-3 font-medium">Status</th><th className="pb-3 text-right font-medium">Ações</th></tr></thead><tbody>{isLoading && <tr><td colSpan={6} className="py-10 text-center text-[11px] text-[#7d8d86]">Carregando solicitações…</td></tr>}{!isLoading && visible.length === 0 && <tr><td colSpan={6} className="py-10 text-center text-[11px] text-[#7d8d86]">Nenhuma solicitação encontrada para os filtros atuais.</td></tr>}{visible.map((request) => <tr key={request.id} className="border-b border-[#edf0e9] last:border-0"><td className="py-4"><p className="text-[11px] font-bold text-[#34564b]">{request.protocol}</p><p className="mt-1 text-[10px] text-[#71847e]">{request.applicant || "Interessado não informado"}</p></td><td className="py-4 text-[11px] text-[#556e66]">{documentTypeLabels[request.documentType as DocumentType] ?? request.documentType}</td><td className="py-4 font-mono-ui text-[10px] text-[#506960]">{request.enrollment || "—"}</td><td className="py-4 text-[10px] text-[#788c85]">{new Date(request.updatedAt).toLocaleDateString("pt-BR")}</td><td className="py-4"><Badge className={`rounded-full border-0 px-2.5 py-1 text-[9px] font-semibold shadow-none ${statusTone[request.status] ?? statusTone.draft}`}>{statusLabel[request.status] ?? request.status}</Badge></td><td className="py-4 text-right"><RequestActions requestId={request.id} status={request.status} /></td></tr>)}</tbody></table></div>
   </div>;
 }
 
