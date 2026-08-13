@@ -119,6 +119,23 @@ export async function getRequestById(userId: number, id: number) {
   return result[0];
 }
 
+export async function updateRequest(userId: number, id: number, input: Partial<RequestInput>) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  const current = await getRequestById(userId, id);
+  if (!current) throw new Error("Solicitação não encontrada.");
+  const values: Partial<RequestInput> = {};
+  if (input.protocol !== undefined) values.protocol = input.protocol;
+  if (input.enrollment !== undefined) values.enrollment = input.enrollment;
+  if (input.applicant !== undefined) values.applicant = input.applicant;
+  if (input.description !== undefined) values.description = input.description;
+  if (input.formData !== undefined) values.formData = input.formData;
+  if (Object.keys(values).length > 0) {
+    await db.update(documentRequests).set(values).where(and(eq(documentRequests.id, id), eq(documentRequests.userId, userId)));
+  }
+  return getRequestById(userId, id);
+}
+
 export async function updateRequestExtractedData(userId: number, id: number, extractedData: Record<string, unknown>) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível.");

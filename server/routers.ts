@@ -47,6 +47,10 @@ export const appRouter = router({
     list: protectedProcedure.query(({ ctx }) => db.listRequests(ctx.user.id)),
     get: protectedProcedure.input(z.object({ id: z.number().int().positive() })).query(({ ctx, input }) => db.getRequestById(ctx.user.id, input.id)),
     create: protectedProcedure.input(z.object({ protocol: z.string().min(3).max(80), documentType: z.enum(documentTypes), enrollment: z.string().max(120).optional(), applicant: z.string().max(320).optional(), description: z.string().max(4000).optional(), formData: z.record(z.string(), z.unknown()).optional() })).mutation(({ ctx, input }) => db.createRequest(ctx.user.id, input)),
+    update: protectedProcedure.input(z.object({ id: z.number().int().positive(), protocol: z.string().min(3).max(80).optional(), enrollment: z.string().max(120).optional(), applicant: z.string().max(320).optional(), description: z.string().max(4000).optional(), formData: z.record(z.string(), z.unknown()).optional() })).mutation(({ ctx, input }) => {
+      const { id, ...changes } = input;
+      return db.updateRequest(ctx.user.id, id, changes);
+    }),
     files: protectedProcedure.input(z.object({ requestId: z.number().int().positive() })).query(({ ctx, input }) => db.listFilesForRequest(ctx.user.id, input.requestId)),
   }),
   uploads: router({
@@ -94,16 +98,22 @@ export const appRouter = router({
       const sources = await db.listSpatialSources(ctx.user.id);
       const extracted: Record<string, unknown> = {};
       const matchedSources: string[] = [];
+      const sourceFailures: Array<{ source: string; message: string }> = [];
       for (const source of sources) {
         const file = await db.getFileById(ctx.user.id, source.fileId);
         if (!file) continue;
-        const result = source.kind === "geopackage" ? await extractGeoPackageLot(file.storageKey, request.enrollment) : await extractSpreadsheetLot(file.storageKey, request.enrollment);
-        if (result) {
-          Object.assign(extracted, result);
-          matchedSources.push(source.name);
+        try {
+          const result = source.kind === "geopackage" ? await extractGeoPackageLot(file.storageKey, request.enrollment) : await extractSpreadsheetLot(file.storageKey, request.enrollment);
+          if (result) {
+            Object.assign(extracted, result);
+            matchedSources.push(source.name);
+          }
+        } catch (error) {
+          sourceFailures.push({ source: source.name, message: error instanceof Error ? error.message : "Falha ao consultar a fonte territorial." });
         }
       }
-      return db.updateRequestExtractedData(ctx.user.id, input.requestId, { ...extracted, fontes_consultadas: matchedSources, inscricao_consultada: request.enrollment });
+      const updated = await db.updateRequestExtractedData(ctx.user.id, input.requestId, { ...extracted, fontes_consultadas: matchedSources, inscricao_consultada: request.enrollment });
+      return { request: updated, extractedData: updated?.extractedData ?? {}, matchedSources, sourceFailures, processedSources: sources.length };
     }),
   }),
   ai: router({
