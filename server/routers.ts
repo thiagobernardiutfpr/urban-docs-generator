@@ -1,5 +1,6 @@
 import { COOKIE_NAME } from "@shared/const";
 import { documentTypes, getExtension, isImageFile, isSpatialFile, isSupportedUpload, maxUploadBytes } from "@shared/urbanDocs";
+import { getDemonstrationRequest } from "@shared/documentDemoData";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import * as db from "./db";
@@ -7,6 +8,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { storagePut } from "./storage";
+import { analyzeUrbanInstruction } from "./urbanAI";
 import { downloadStorageBytes, extractGeoPackageLot, extractSpreadsheetLot, renderDocument } from "./urbanDocs";
 
 const filePayload = z.object({
@@ -104,8 +106,52 @@ export const appRouter = router({
       return db.updateRequestExtractedData(ctx.user.id, input.requestId, { ...extracted, fontes_consultadas: matchedSources, inscricao_consultada: request.enrollment });
     }),
   }),
+  ai: router({
+    analyze: protectedProcedure.input(z.object({
+      documentType: z.enum(documentTypes),
+      protocol: z.string().max(80).optional(),
+      enrollment: z.string().max(120).optional(),
+      applicant: z.string().max(320).optional(),
+      description: z.string().max(4000).optional(),
+      fields: z.record(z.string(), z.string()).optional(),
+      extractedData: z.record(z.string(), z.unknown()).optional(),
+    })).mutation(async ({ input }) => {
+      try {
+        return await analyzeUrbanInstruction(input);
+      } catch (error) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error instanceof Error ? `Assistente de IA indisponível: ${error.message}` : "Assistente de IA indisponível." });
+      }
+    }),
+    chat: protectedProcedure.input(z.object({ messages: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().min(1).max(2500) })).min(1).max(10) })).mutation(async ({ input }) => {
+      try {
+        const { invokeLLM } = await import("./_core/llm");
+        const response = await invokeLLM({
+          model: "gpt-5-mini",
+          messages: [
+            { role: "system", content: "Você é o Assistente UrbanDocs, uma ferramenta de apoio para a equipe municipal. Oriente sobre os recursos do sistema: solicitações, modelos DOCX, referências PDF, dados territoriais, conferência cartográfica, geração e revisão de documentos. Não invente leis, dados cadastrais, zoneamento, resultados de certidões ou conclusões administrativas. Não faça diagnósticos legais. Quando for solicitada uma decisão, indique os dados a conferir e recomende validação por técnico competente. Responda em português brasileiro, com objetividade." },
+            ...input.messages,
+          ],
+        });
+        const answer = response.choices[0]?.message.content;
+        if (typeof answer !== "string" || !answer.trim()) throw new Error("A IA não retornou uma resposta utilizável.");
+        return { answer };
+      } catch (error) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error instanceof Error ? `Assistente de IA indisponível: ${error.message}` : "Assistente de IA indisponível." });
+      }
+    }),
+  }),
   generated: router({
     list: protectedProcedure.input(z.object({ requestId: z.number().int().positive() })).query(({ ctx, input }) => db.listGeneratedDocuments(ctx.user.id, input.requestId)),
+    previewDemo: protectedProcedure.mutation(async ({ ctx }) => {
+      const documentType = "certidao_tombamento" as const;
+      const demonstration = getDemonstrationRequest(documentType);
+      const rendered = await renderDocument({ documentType, fields: { protocolo: demonstration.protocol, inscricao_imobiliaria: demonstration.enrollment, interessado: demonstration.applicant, objeto: demonstration.description, ...demonstration.fields } });
+      const stamp = Date.now();
+      const prefix = `urban-docs/${ctx.user.id}/preview-demo`;
+      const docx = await storagePut(`${prefix}/${rendered.filename}_${stamp}.docx`, rendered.docxBytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+      const pdf = await storagePut(`${prefix}/${rendered.filename}_${stamp}.pdf`, rendered.pdfBytes, "application/pdf");
+      return { docx: { storageUrl: docx.url }, pdf: { storageUrl: pdf.url } };
+    }),
     create: protectedProcedure.input(z.object({ requestId: z.number().int().positive(), templateId: z.number().int().positive().optional() })).mutation(async ({ ctx, input }) => {
       const request = await db.getRequestById(ctx.user.id, input.requestId);
       if (!request) throw new TRPCError({ code: "NOT_FOUND", message: "Solicitação não encontrada." });

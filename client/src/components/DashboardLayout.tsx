@@ -26,6 +26,7 @@ import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
+import UrbanGlobalAssistant from "./UrbanGlobalAssistant";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Visão geral", path: "/" },
@@ -241,6 +242,7 @@ function DashboardLayoutContent({
           </div>
         )}
         <main className="flex-1 p-4 md:p-7 lg:p-8">{children}</main>
+        <UrbanGlobalAssistant />
       </SidebarInset>
     </>
   );

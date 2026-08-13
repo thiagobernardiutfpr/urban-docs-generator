@@ -5,6 +5,7 @@ import PizZip from "pizzip";
 import { canTransitionRequestStatus, documentTypes, getExtension, isSpatialFile, isSupportedUpload, normalizeEnrollment, normalizeFieldName } from "../shared/urbanDocs";
 import { documentSchemas } from "../shared/documentFields";
 import { getDemonstrationRequest } from "../shared/documentDemoData";
+import { getPdfPreviewUrl } from "../shared/documentPreview";
 import { projectPosition, renderDocument } from "./urbanDocs";
 
 describe("regras documentais urbanísticas", () => {
@@ -91,6 +92,11 @@ describe("regras documentais urbanísticas", () => {
     expect(Buffer.from(output.pdfBytes).subarray(0, 4).toString()).toBe("%PDF");
     expect(documentXml).toContain("Consulta oficial");
     expect(documentXml).toContain(demonstration.fields.resultado_desapropriacao);
+  });
+
+  it("monta uma URL de pré-visualização PDF sem reutilizar fragmentos anteriores", () => {
+    expect(getPdfPreviewUrl("/manus-storage/documento.pdf")).toBe("/manus-storage/documento.pdf#view=FitH");
+    expect(getPdfPreviewUrl("/manus-storage/documento.pdf#page=2")).toBe("/manus-storage/documento.pdf#view=FitH");
   });
 
   it("permite somente transições coerentes entre etapas de processamento", () => {

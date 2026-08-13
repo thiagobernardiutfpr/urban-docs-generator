@@ -58,3 +58,24 @@
 - [x] Registrar as ações externas necessárias para colocar o UrbanDocs em uso institucional: publicar a versão aprovada pelo botão **Publish** da interface e substituir dados de demonstração por dados oficiais antes de emissões reais.
 - [x] Verificar e documentar a disponibilidade dos dados de demonstração usados pelo botão de preenchimento para teste.
 - [x] Criar e confirmar o documento de prontidão operacional com as ações externas de publicação e uso institucional.
+- [x] Auditar logs e fluxos críticos para corrigir falhas técnicas identificáveis.
+- [x] Integrar um assistente de IA para resumir instruções, sinalizar pendências e sugerir redação técnica com revisão humana obrigatória.
+- [x] Adicionar um painel de análise por IA ao fluxo de solicitação, sem substituir decisões técnicas ou administrativas.
+- [x] Adicionar pré-visualização incorporada do PDF gerado antes do download final.
+- [x] Criar testes para a resposta estruturada da IA, a pré-visualização e os fluxos corrigidos.
+- [x] Validar visualmente os recursos de IA e a pré-visualização do documento final.
+- [x] Investigar o registro histórico de falha de ciclo de execução identificado no log e confirmar que não afeta a versão atual.
+- [x] Disponibilizar um assistente conversacional de IA acessível em todas as áreas administrativas do UrbanDocs.
+- [x] Recuperar e confirmar a compilação de produção após a interrupção por pressão de memória.
+- [x] Validar visualmente a etapa de emissão final com a pré-visualização incorporada do PDF gerado.
+- [x] Adicionar verificação funcional da montagem da pré-visualização após a geração do documento final.
+- [x] Corrigir a compatibilidade JSX do teste de pré-visualização para restabelecer a suíte completa.
+- [x] Disponibilizar uma rota de demonstração da pré-visualização final para validação visual sem emissão oficial.
+- [x] Validar a etapa 4 do fluxo real de emissão com uma geração documentada e a pré-visualização incorporada do PDF resultante.
+- [x] Adicionar teste de integração do fluxo de emissão que vincule o PDF gerado à pré-visualização final.
+- [x] Validar visualmente o fluxo real até a etapa 4 por meio de uma emissão de demonstração gerada pela aplicação.
+- [x] Registrar evidência da etapa final real mostrando a pré-visualização do PDF produzido pelo próprio fluxo de demonstração.
+- [x] Documentar a conclusão da emissão de demonstração, incluindo a confirmação do retorno de `output.pdf.storageUrl` no componente final.
+- [x] Registrar formalmente a inspeção visual da pré-visualização incorporada do PDF resultante da emissão de demonstração.
+- [x] Criar e confirmar no repositório a evidência da emissão de demonstração, incluindo o consumo de `output.pdf.storageUrl` pelo componente final.
+- [x] Confirmar a inspeção visual da rota de emissão de demonstração por meio da leitura do arquivo de evidência salvo.
