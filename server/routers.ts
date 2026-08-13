@@ -22,7 +22,7 @@ function readPayload(payload: z.infer<typeof filePayload>) {
   return buffer;
 }
 
-async function storeFile(input: { userId: number; requestId?: number; category: "input" | "image" | "template" | "spatial" | "generated_docx" | "generated_pdf"; filename: string; mimeType: string; content: Buffer | Uint8Array }) {
+async function storeFile(input: { userId: number; requestId?: number; category: "input" | "image" | "template" | "reference" | "spatial" | "generated_docx" | "generated_pdf"; filename: string; mimeType: string; content: Buffer | Uint8Array }) {
   const keyPrefix = input.requestId ? `urban-docs/${input.userId}/requests/${input.requestId}` : `urban-docs/${input.userId}/library`;
   const { key, url } = await storagePut(`${keyPrefix}/${input.filename}`, input.content, input.mimeType);
   return db.createFileRecord({ userId: input.userId, requestId: input.requestId, category: input.category, filename: input.filename, mimeType: input.mimeType, byteSize: input.content.byteLength, storageKey: key, storageUrl: url });
@@ -58,6 +58,7 @@ export const appRouter = router({
   }),
   templates: router({
     list: protectedProcedure.query(({ ctx }) => db.listTemplates(ctx.user.id)),
+    setActive: protectedProcedure.input(z.object({ id: z.number().int().positive(), isActive: z.boolean() })).mutation(({ ctx, input }) => db.setTemplateActive(ctx.user.id, input.id, input.isActive)),
     upload: protectedProcedure.input(z.object({ documentType: z.enum(documentTypes), name: z.string().min(3).max(255), version: z.string().min(1).max(40).default("1.0"), payload: filePayload })).mutation(async ({ ctx, input }) => {
       if (getExtension(input.payload.filename) !== "docx") throw new TRPCError({ code: "BAD_REQUEST", message: "Os modelos devem ser enviados em DOCX." });
       const content = readPayload(input.payload);
@@ -65,8 +66,19 @@ export const appRouter = router({
       return db.createTemplate({ userId: ctx.user.id, documentType: input.documentType, name: input.name, version: input.version, fileId: file.id });
     }),
   }),
+  references: router({
+    list: protectedProcedure.query(({ ctx }) => db.listReferences(ctx.user.id)),
+    setActive: protectedProcedure.input(z.object({ id: z.number().int().positive(), isActive: z.boolean() })).mutation(({ ctx, input }) => db.setReferenceActive(ctx.user.id, input.id, input.isActive)),
+    upload: protectedProcedure.input(z.object({ documentType: z.enum(documentTypes), title: z.string().min(3).max(255), description: z.string().max(2000).optional(), payload: filePayload })).mutation(async ({ ctx, input }) => {
+      if (getExtension(input.payload.filename) !== "pdf") throw new TRPCError({ code: "BAD_REQUEST", message: "Os documentos de referência devem ser enviados em PDF." });
+      const content = readPayload(input.payload);
+      const file = await storeFile({ userId: ctx.user.id, category: "reference", filename: input.payload.filename, mimeType: input.payload.mimeType, content });
+      return db.createReference({ userId: ctx.user.id, documentType: input.documentType, title: input.title, description: input.description, fileId: file.id });
+    }),
+  }),
   spatial: router({
-    list: protectedProcedure.query(({ ctx }) => db.listSpatialSources(ctx.user.id)),
+    list: protectedProcedure.query(({ ctx }) => db.listAllSpatialSources(ctx.user.id)),
+    setActive: protectedProcedure.input(z.object({ id: z.number().int().positive(), isActive: z.boolean() })).mutation(({ ctx, input }) => db.setSpatialSourceActive(ctx.user.id, input.id, input.isActive)),
     upload: protectedProcedure.input(z.object({ name: z.string().min(3).max(255), payload: filePayload })).mutation(async ({ ctx, input }) => {
       if (!isSpatialFile(input.payload.filename)) throw new TRPCError({ code: "BAD_REQUEST", message: "Envie uma planilha XLS, XLSX, CSV ou um arquivo GeoPackage." });
       const content = readPayload(input.payload);

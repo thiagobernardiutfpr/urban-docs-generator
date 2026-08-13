@@ -1,6 +1,6 @@
 import { and, desc, eq, max } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { documentFiles, documentRequests, documentTemplates, generatedDocuments, InsertUser, spatialSources, users } from "../drizzle/schema";
+import { documentFiles, documentReferences, documentRequests, documentTemplates, generatedDocuments, InsertUser, spatialSources, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { canTransitionRequestStatus, type RequestStatus } from "../shared/urbanDocs";
 
@@ -164,7 +164,19 @@ export async function createTemplate(input: typeof documentTemplates.$inferInser
 export async function listTemplates(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(documentTemplates).where(eq(documentTemplates.userId, userId)).orderBy(desc(documentTemplates.updatedAt));
+  const templates = await db.select().from(documentTemplates).where(eq(documentTemplates.userId, userId)).orderBy(desc(documentTemplates.updatedAt));
+  return Promise.all(templates.map(async (template) => {
+    const file = await getFileById(userId, template.fileId);
+    return { ...template, storageUrl: file?.storageUrl, filename: file?.filename };
+  }));
+}
+
+export async function setTemplateActive(userId: number, id: number, isActive: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  await db.update(documentTemplates).set({ isActive: isActive ? 1 : 0 }).where(and(eq(documentTemplates.id, id), eq(documentTemplates.userId, userId)));
+  const result = await db.select().from(documentTemplates).where(and(eq(documentTemplates.id, id), eq(documentTemplates.userId, userId))).limit(1);
+  return result[0];
 }
 
 export async function getActiveTemplate(userId: number, documentType: string) {
@@ -179,6 +191,32 @@ export async function getTemplateById(userId: number, id: number) {
   if (!db) return undefined;
   const result = await db.select().from(documentTemplates).where(and(eq(documentTemplates.userId, userId), eq(documentTemplates.id, id))).limit(1);
   return result[0];
+}
+
+export async function createReference(input: typeof documentReferences.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  const result = await db.insert(documentReferences).values(input);
+  const row = await db.select().from(documentReferences).where(eq(documentReferences.id, Number(result[0].insertId))).limit(1);
+  return row[0];
+}
+
+export async function listReferences(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const references = await db.select().from(documentReferences).where(eq(documentReferences.userId, userId)).orderBy(desc(documentReferences.updatedAt));
+  return Promise.all(references.map(async (reference) => {
+    const file = await getFileById(userId, reference.fileId);
+    return { ...reference, storageUrl: file?.storageUrl, filename: file?.filename };
+  }));
+}
+
+export async function setReferenceActive(userId: number, id: number, isActive: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  await db.update(documentReferences).set({ isActive: isActive ? 1 : 0 }).where(and(eq(documentReferences.id, id), eq(documentReferences.userId, userId)));
+  const row = await db.select().from(documentReferences).where(and(eq(documentReferences.id, id), eq(documentReferences.userId, userId))).limit(1);
+  return row[0];
 }
 
 export async function getFileById(userId: number, id: number) {
@@ -200,6 +238,20 @@ export async function listSpatialSources(userId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(spatialSources).where(and(eq(spatialSources.userId, userId), eq(spatialSources.isActive, 1))).orderBy(desc(spatialSources.updatedAt));
+}
+
+export async function listAllSpatialSources(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(spatialSources).where(eq(spatialSources.userId, userId)).orderBy(desc(spatialSources.updatedAt));
+}
+
+export async function setSpatialSourceActive(userId: number, id: number, isActive: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  await db.update(spatialSources).set({ isActive: isActive ? 1 : 0 }).where(and(eq(spatialSources.id, id), eq(spatialSources.userId, userId)));
+  const result = await db.select().from(spatialSources).where(and(eq(spatialSources.id, id), eq(spatialSources.userId, userId))).limit(1);
+  return result[0];
 }
 
 export async function createGeneratedDocument(input: Omit<typeof generatedDocuments.$inferInsert, "versionNumber">) {

@@ -44,7 +44,7 @@ export const documentFiles = mysqlTable("documentFiles", {
   id: int("id").autoincrement().primaryKey(),
   requestId: int("requestId"),
   userId: int("userId").notNull(),
-  category: mysqlEnum("category", ["input", "image", "template", "spatial", "generated_docx", "generated_pdf"]).notNull(),
+  category: mysqlEnum("category", ["input", "image", "template", "reference", "spatial", "generated_docx", "generated_pdf"]).notNull(),
   filename: varchar("filename", { length: 255 }).notNull(),
   mimeType: varchar("mimeType", { length: 160 }).notNull(),
   byteSize: int("byteSize").notNull(),
@@ -61,6 +61,18 @@ export const documentTemplates = mysqlTable("documentTemplates", {
   version: varchar("version", { length: 40 }).default("1.0").notNull(),
   isActive: int("isActive").default(1).notNull(),
   fileId: int("fileId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const documentReferences = mysqlTable("documentReferences", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  documentType: varchar("documentType", { length: 80 }).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  fileId: int("fileId").notNull(),
+  isActive: int("isActive").default(1).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

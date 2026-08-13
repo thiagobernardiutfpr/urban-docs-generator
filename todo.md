@@ -18,3 +18,32 @@
 - [x] Validar visualmente a responsividade e os fluxos principais em desktop e dispositivo móvel.
 - [x] Conectar o dashboard e a tela de solicitações às consultas persistidas, com filtros e estados dinâmicos.
 - [x] Adicionar testes para transições de status das solicitações durante cruzamento e emissão.
+- [x] Examinar e associar os três modelos oficiais enviados às tipologias de laudo de viabilidade, parecer de EIV e diretriz de loteamento.
+- [x] Criar uma área administrativa completa para upload, associação, consulta e gestão de versões dos modelos DOCX oficiais.
+- [x] Criar uma área administrativa completa para upload, consulta e gestão das planilhas e fontes GeoPackage.
+- [x] Extrair e disponibilizar geometrias GeoJSON das fontes GeoPackage para visualização no aplicativo.
+- [x] Adicionar mapa interativo na conferência da solicitação, com destaque para a geometria encontrada pelo cruzamento da inscrição imobiliária.
+- [x] Validar os modelos e os fluxos administrativos atualizados com testes e verificação visual.
+- [x] Adicionar ações de download e visualização para os modelos DOCX cadastrados, com teste funcional de gestão de versões.
+- [x] Criar testes para as mutações administrativas e validar a emissão usando os três modelos oficiais associados.
+- [x] Adicionar teste funcional para upload versionado, listagem, abertura e alternância ativo/arquivado de modelos DOCX.
+- [x] Criar teste de integração que selecione o modelo associado por tipologia no fluxo de emissão.
+- [x] Implementar uma camada de compatibilização para preencher os modelos oficiais legados sem marcadores explícitos, evitando fallback genérico na emissão oficial.
+- [x] Examinar as certidões de uso e ocupação do solo, tombamento e desapropriação enviadas e mapear seus campos recorrentes.
+- [x] Registrar os três novos documentos de referência no acervo administrativo com as tipologias correspondentes.
+- [x] Incorporar os campos identificados das novas certidões à compatibilização de emissão e aos testes documentais.
+- [x] Consolidar a análise de seções e campos dos modelos de parecer EIV, diretriz de loteamento e laudo de viabilidade.
+- [x] Concluir a análise da certidão de desapropriação e consolidar a matriz de campos dos três documentos de referência recém-enviados.
+- [x] Atualizar a documentação do acervo com a matriz integrada de campos e regras de emissão por tipologia.
+- [x] Confirmar e consolidar em arquivo a matriz integrada de campos, fontes e regras de emissão para as seis tipologias analisadas.
+- [x] Reler a matriz persistida e validar a presença dos três novos referenciais: uso e ocupação do solo, tombamento e desapropriação.
+- [x] Implementar catálogo tipado de campos, evidências e alertas de revisão para as seis tipologias analisadas.
+- [x] Adicionar campos específicos de uso e ocupação do solo, tombamento e desapropriação ao fluxo de solicitação.
+- [x] Adicionar campos específicos de EIV, diretriz de loteamento e laudo de viabilidade ao fluxo de solicitação.
+- [x] Gerar seções estruturadas de certidões quando não houver modelo DOCX oficial vinculado.
+- [x] Criar testes de regras documentais para os novos campos e emissão estruturada de certidões.
+- [x] Validar visualmente as novas seções do formulário e a revisão antes da emissão.
+- [x] Documentar a revisão visual da tela de solicitação, confirmando as seções por tipologia e o painel de alertas antes da emissão.
+- [x] Confirmar a persistência e o conteúdo da documentação de validação visual do formulário por tipologia.
+- [x] Validar visualmente, com documentação consolidada, os formulários de parecer EIV, diretriz de loteamento, laudo de viabilidade, tombamento e desapropriação.
+- [x] Confirmar no repositório a documentação consolidada da validação visual das cinco tipologias representativas.

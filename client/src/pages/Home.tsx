@@ -1,6 +1,9 @@
 import DashboardLayout from "@/components/DashboardLayout";
-import RequestWizard from "@/components/RequestWizard";
+import RequestWizard from "@/components/RequestWizardWithMap";
 import { DocumentHistory, SpatialLibrary, TemplateLibrary } from "@/components/DocumentLibraries";
+import { SpatialSourceAdministration, TemplateAdministration } from "@/components/AdministrativeLibraries";
+import TemplateRegistry from "@/components/TemplateRegistry";
+import ReferenceRegistry from "@/components/ReferenceRegistry";
 import { OperationalDashboard, RequestsWorkspace } from "@/components/LiveRequests";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -173,8 +176,8 @@ export default function Home() {
   let content: React.ReactNode = <OperationalDashboard />;
   if (location === "/nova-solicitacao") content = <NewRequest />;
   if (location === "/solicitacoes") content = <RequestsWorkspace />;
-  if (location === "/modelos") content = <TemplateLibrary />;
-  if (location === "/bases") content = <SpatialLibrary />;
+  if (location === "/modelos") content = <><TemplateRegistry /><ReferenceRegistry /></>;
+  if (location === "/bases") content = <SpatialSourceAdministration />;
   if (location === "/historico") content = <DocumentHistory />;
   return <DashboardLayout>{content}</DashboardLayout>;
 }
