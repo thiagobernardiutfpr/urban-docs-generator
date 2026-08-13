@@ -8,4 +8,5 @@
 - [x] Executar a validação técnica e visual final.
 - [x] Reproduzir e corrigir a falha da opção de emissão de documentos.
 - [x] Cobrir a emissão em coleta de insumos com teste automatizado de geração.
-- [ ] Validar a emissão real e os links PDF/DOCX no processo do usuário após a publicação da correção.
+- [x] Validar a emissão real e os links PDF/DOCX no processo do usuário após a publicação da correção.
+- [x] Emitir a versão autorizada do processo 49316/2026 e confirmar os arquivos gerados.

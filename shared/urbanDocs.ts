@@ -56,7 +56,7 @@ export type RequestStatus = (typeof requestStatuses)[number];
 
 const validStatusTransitions: Record<RequestStatus, RequestStatus[]> = {
   draft: ["collecting"],
-  collecting: ["cross_referenced", "failed"],
+  collecting: ["cross_referenced", "processing", "failed"],
   cross_referenced: ["ready_for_review", "processing", "failed"],
   ready_for_review: ["processing", "failed"],
   processing: ["completed", "failed"],

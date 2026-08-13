@@ -38,6 +38,11 @@ describe("regras documentais urbanísticas", () => {
     expect(isSpatialFile("imagem.png")).toBe(false);
   });
 
+  it("permite iniciar a emissão enquanto o processo ainda está em coleta de insumos", () => {
+    expect(canTransitionRequestStatus("collecting", "processing")).toBe(true);
+    expect(canTransitionRequestStatus("processing", "completed")).toBe(true);
+  });
+
   it("gera versões DOCX e PDF quando não há modelo oficial associado", async () => {
     const output = await renderDocument({
       documentType: "certidao_uso_ocupacao_solo",
