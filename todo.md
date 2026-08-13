@@ -53,3 +53,8 @@
 - [x] Testar valores de demonstração em todas as tipologias, confirmando o preenchimento dos campos obrigatórios.
 - [x] Testar o fluxo de emissão estruturada usando valores de demonstração, com geração de DOCX e PDF.
 - [x] Validar com renderização real os bytes DOCX e PDF de uma certidão estruturada preenchida por dados de demonstração.
+- [x] Executar a revisão final de tipos, testes e compilação da versão operacional.
+- [x] Verificar a disponibilidade dos modelos, referências PDF e dados de teste cadastrados.
+- [x] Registrar as ações externas necessárias para colocar o UrbanDocs em uso institucional: publicar a versão aprovada pelo botão **Publish** da interface e substituir dados de demonstração por dados oficiais antes de emissões reais.
+- [x] Verificar e documentar a disponibilidade dos dados de demonstração usados pelo botão de preenchimento para teste.
+- [x] Criar e confirmar o documento de prontidão operacional com as ações externas de publicação e uso institucional.
