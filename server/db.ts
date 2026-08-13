@@ -1,7 +1,8 @@
-import { eq } from "drizzle-orm";
+import { and, desc, eq, max } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { documentFiles, documentRequests, documentTemplates, generatedDocuments, InsertUser, spatialSources, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import { canTransitionRequestStatus, type RequestStatus } from "../shared/urbanDocs";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -89,4 +90,134 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+export type RequestInput = {
+  protocol: string;
+  documentType: string;
+  enrollment?: string;
+  applicant?: string;
+  description?: string;
+  formData?: Record<string, unknown>;
+};
+
+export async function createRequest(userId: number, input: RequestInput) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  const result = await db.insert(documentRequests).values({ userId, ...input, status: "collecting" });
+  return getRequestById(userId, Number(result[0].insertId));
+}
+
+export async function listRequests(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(documentRequests).where(eq(documentRequests.userId, userId)).orderBy(desc(documentRequests.updatedAt));
+}
+
+export async function getRequestById(userId: number, id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(documentRequests).where(and(eq(documentRequests.id, id), eq(documentRequests.userId, userId))).limit(1);
+  return result[0];
+}
+
+export async function updateRequestExtractedData(userId: number, id: number, extractedData: Record<string, unknown>) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  const current = await getRequestById(userId, id);
+  if (!current) throw new Error("Solicitação não encontrada.");
+  if (!canTransitionRequestStatus(current.status as RequestStatus, "cross_referenced")) throw new Error("A solicitação não está em um estágio compatível com o cruzamento.");
+  await db.update(documentRequests).set({ extractedData, status: "cross_referenced" }).where(and(eq(documentRequests.id, id), eq(documentRequests.userId, userId)));
+  return getRequestById(userId, id);
+}
+
+export async function updateRequestStatus(userId: number, id: number, status: "ready_for_review" | "processing" | "completed" | "failed") {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  const current = await getRequestById(userId, id);
+  if (!current) throw new Error("Solicitação não encontrada.");
+  if (!canTransitionRequestStatus(current.status as RequestStatus, status)) throw new Error("Transição de status não permitida para esta solicitação.");
+  await db.update(documentRequests).set({ status }).where(and(eq(documentRequests.id, id), eq(documentRequests.userId, userId)));
+}
+
+export async function createFileRecord(input: typeof documentFiles.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  const result = await db.insert(documentFiles).values(input);
+  const id = Number(result[0].insertId);
+  const row = await db.select().from(documentFiles).where(eq(documentFiles.id, id)).limit(1);
+  return row[0];
+}
+
+export async function listFilesForRequest(userId: number, requestId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(documentFiles).where(and(eq(documentFiles.userId, userId), eq(documentFiles.requestId, requestId))).orderBy(desc(documentFiles.createdAt));
+}
+
+export async function createTemplate(input: typeof documentTemplates.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  const result = await db.insert(documentTemplates).values(input);
+  const row = await db.select().from(documentTemplates).where(eq(documentTemplates.id, Number(result[0].insertId))).limit(1);
+  return row[0];
+}
+
+export async function listTemplates(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(documentTemplates).where(eq(documentTemplates.userId, userId)).orderBy(desc(documentTemplates.updatedAt));
+}
+
+export async function getActiveTemplate(userId: number, documentType: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(documentTemplates).where(and(eq(documentTemplates.userId, userId), eq(documentTemplates.documentType, documentType), eq(documentTemplates.isActive, 1))).orderBy(desc(documentTemplates.updatedAt)).limit(1);
+  return result[0];
+}
+
+export async function getTemplateById(userId: number, id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(documentTemplates).where(and(eq(documentTemplates.userId, userId), eq(documentTemplates.id, id))).limit(1);
+  return result[0];
+}
+
+export async function getFileById(userId: number, id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(documentFiles).where(and(eq(documentFiles.id, id), eq(documentFiles.userId, userId))).limit(1);
+  return result[0];
+}
+
+export async function createSpatialSource(input: typeof spatialSources.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  const result = await db.insert(spatialSources).values(input);
+  const row = await db.select().from(spatialSources).where(eq(spatialSources.id, Number(result[0].insertId))).limit(1);
+  return row[0];
+}
+
+export async function listSpatialSources(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(spatialSources).where(and(eq(spatialSources.userId, userId), eq(spatialSources.isActive, 1))).orderBy(desc(spatialSources.updatedAt));
+}
+
+export async function createGeneratedDocument(input: Omit<typeof generatedDocuments.$inferInsert, "versionNumber">) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  const versionResult = await db.select({ version: max(generatedDocuments.versionNumber) }).from(generatedDocuments).where(eq(generatedDocuments.requestId, input.requestId));
+  const versionNumber = (versionResult[0]?.version ?? 0) + 1;
+  const result = await db.insert(generatedDocuments).values({ ...input, versionNumber });
+  const row = await db.select().from(generatedDocuments).where(eq(generatedDocuments.id, Number(result[0].insertId))).limit(1);
+  return row[0];
+}
+
+export async function listGeneratedDocuments(userId: number, requestId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const documents = await db.select().from(generatedDocuments).where(and(eq(generatedDocuments.userId, userId), eq(generatedDocuments.requestId, requestId))).orderBy(desc(generatedDocuments.versionNumber));
+  return Promise.all(documents.map(async (document) => {
+    const [docx, pdf] = await Promise.all([getFileById(userId, document.docxFileId), getFileById(userId, document.pdfFileId)]);
+    return { ...document, docxUrl: docx?.storageUrl, pdfUrl: pdf?.storageUrl, docxFilename: docx?.filename, pdfFilename: pdf?.filename };
+  }));
+}

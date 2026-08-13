@@ -1,0 +1,76 @@
+export const documentTypes = [
+  "certidao_uso_ocupacao_solo",
+  "laudo_viabilidade",
+  "diretriz_loteamento",
+  "parecer_eiv",
+  "avaliacao_previa_impacto_vizinhanca",
+  "informacao",
+  "oficio",
+  "autorizacao_engenho_publicitario",
+  "certidao_tombamento",
+  "certidao_desapropriacao",
+  "certidao_perimetro_urbano",
+  "parecer_urbanistico",
+] as const;
+
+export type DocumentType = (typeof documentTypes)[number];
+
+export const documentTypeLabels: Record<DocumentType, string> = {
+  certidao_uso_ocupacao_solo: "Certidão de uso e ocupação do solo",
+  laudo_viabilidade: "Laudo de viabilidade",
+  diretriz_loteamento: "Diretriz de loteamento",
+  parecer_eiv: "Parecer de EIV",
+  avaliacao_previa_impacto_vizinhanca: "Avaliação prévia de impacto de vizinhança",
+  informacao: "Informação",
+  oficio: "Ofício",
+  autorizacao_engenho_publicitario: "Autorização de engenho publicitário",
+  certidao_tombamento: "Certidão de tombamento",
+  certidao_desapropriacao: "Certidão de desapropriação",
+  certidao_perimetro_urbano: "Certidão de perímetro urbano",
+  parecer_urbanistico: "Parecer urbanístico",
+};
+
+export const allowedUploadExtensions = ["pdf", "docx", "doc", "dwg", "jpg", "jpeg", "png", "xlsx", "xls", "csv", "gpkg"] as const;
+export const maxUploadBytes = 25 * 1024 * 1024;
+
+export const requestStatuses = ["draft", "collecting", "cross_referenced", "ready_for_review", "processing", "completed", "failed"] as const;
+export type RequestStatus = (typeof requestStatuses)[number];
+
+const validStatusTransitions: Record<RequestStatus, RequestStatus[]> = {
+  draft: ["collecting"],
+  collecting: ["cross_referenced", "failed"],
+  cross_referenced: ["ready_for_review", "processing", "failed"],
+  ready_for_review: ["processing", "failed"],
+  processing: ["completed", "failed"],
+  completed: ["processing"],
+  failed: ["processing", "collecting"],
+};
+
+export function canTransitionRequestStatus(from: RequestStatus, to: RequestStatus): boolean {
+  return validStatusTransitions[from].includes(to);
+}
+
+export function normalizeEnrollment(value: unknown): string {
+  return String(value ?? "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+}
+
+export function normalizeFieldName(value: unknown): string {
+  return String(value ?? "").trim().toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+}
+
+export function getExtension(filename: string): string {
+  const extension = filename.split(".").pop()?.toLocaleLowerCase("pt-BR") ?? "";
+  return extension;
+}
+
+export function isSupportedUpload(filename: string): boolean {
+  return (allowedUploadExtensions as readonly string[]).includes(getExtension(filename));
+}
+
+export function isImageFile(filename: string): boolean {
+  return ["jpg", "jpeg", "png"].includes(getExtension(filename));
+}
+
+export function isSpatialFile(filename: string): boolean {
+  return ["xlsx", "xls", "csv", "gpkg"].includes(getExtension(filename));
+}
