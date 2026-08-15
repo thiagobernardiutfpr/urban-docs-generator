@@ -45,4 +45,6 @@
 - [ ] Validar na interface publicada a mensagem amigável da IA indisponível e a continuidade do preenchimento manual.
 - [ ] Registrar evidência verificável da operação publicada após a correção 412.
 - [x] Exibir de forma persistente no painel do Assistente IA a orientação de indisponibilidade sem bloquear a revisão.
+- [ ] Validar no ambiente publicado a resposta persistente do painel após falha do Assistente IA.
+- [x] Cobrir em teste de componente a rejeição da mutação do painel e a inclusão da mensagem na conversa.
 - [x] Tratar respostas 412 do serviço de IA sem repetição automática e sem bloquear o fluxo documental.
