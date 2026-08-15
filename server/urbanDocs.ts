@@ -12,6 +12,7 @@ import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
+import { pathToFileURL } from "node:url";
 import { documentTypeLabels, getExtension, normalizeEnrollment, normalizeFieldName } from "../shared/urbanDocs";
 import { documentSchemas, getSchemaSections } from "../shared/documentFields";
 import { storageGetSignedUrl } from "./storage";
@@ -22,6 +23,13 @@ export type ExtractedLotData = Record<string, unknown> & {
 };
 
 type ImageAttachment = { name: string; content: Uint8Array; mimeType: string };
+export type TemplateProfile = {
+  markerNames: string[];
+  textPartNames: string[];
+  hasHeader: boolean;
+  hasFooter: boolean;
+  fillMode: "markers" | "legacy";
+};
 const execFileAsync = promisify(execFile);
 
 function safeFilename(value: string) {
@@ -140,7 +148,8 @@ async function convertDocxToPdf(docxBytes: Uint8Array, filename: string) {
   const pdfPath = sourcePath.replace(/\.docx$/i, ".pdf");
   try {
     await writeFile(sourcePath, docxBytes);
-    await execFileAsync("libreoffice", ["--headless", "--convert-to", "pdf:writer_pdf_Export", "--outdir", directory, sourcePath], { timeout: 100_000, maxBuffer: 2 * 1024 * 1024 });
+    const profile = pathToFileURL(path.join(directory, "libreoffice-profile")).href;
+    await execFileAsync("libreoffice", [`-env:UserInstallation=${profile}`, "--headless", "--convert-to", "pdf:writer_pdf_Export", "--outdir", directory, sourcePath], { timeout: 100_000, maxBuffer: 2 * 1024 * 1024 });
     return await readFile(pdfPath);
   } catch (error) {
     const message = error instanceof Error ? error.message : "erro desconhecido";
@@ -256,6 +265,19 @@ export async function downloadStorageBytes(fileKey: string) {
   return new Uint8Array(await response.arrayBuffer());
 }
 
+export function inspectDocxTemplate(templateBytes: Uint8Array): TemplateProfile {
+  const zip = new PizZip(templateBytes);
+  const textPartNames = Object.keys(zip.files).filter((name) => /^word\/(?:document|header\d+|footer\d+)\.xml$/.test(name));
+  const markerNames = Array.from(new Set(textPartNames.flatMap((name) => Array.from((zip.file(name)?.asText() ?? "").matchAll(/\{([a-zA-Z][a-zA-Z0-9_]*)\}/g)).map((match) => match[1]))));
+  return {
+    markerNames,
+    textPartNames,
+    hasHeader: textPartNames.some((name) => /^word\/header\d+\.xml$/.test(name)),
+    hasFooter: textPartNames.some((name) => /^word\/footer\d+\.xml$/.test(name)),
+    fillMode: markerNames.length ? "markers" : "legacy",
+  };
+}
+
 export async function extractSpreadsheetLot(fileKey: string, enrollment: string): Promise<ExtractedLotData | undefined> {
   const bytes = await downloadStorageBytes(fileKey);
   const workbook = XLSX.read(bytes, { type: "array", cellDates: true });
@@ -308,7 +330,17 @@ export async function renderDocument(input: {
   images?: ImageAttachment[];
 }) {
   const title = documentTypeLabels[input.documentType];
+  const templateFieldDefaults = Object.fromEntries([
+    "protocolo",
+    "inscricao_imobiliaria",
+    "interessado",
+    "objeto",
+    "tipo_documento",
+    "data_emissao",
+    ...documentSchemas[input.documentType].fields.map((field) => field.key),
+  ].map((key) => [key, ""]));
   const fields = flattenTemplateData({
+    ...templateFieldDefaults,
     tipo_documento: title,
     data_emissao: new Intl.DateTimeFormat("pt-BR").format(new Date()),
     ...input.fields,

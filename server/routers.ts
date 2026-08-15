@@ -8,8 +8,9 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, protectedProcedure, publicProcedure, roleProcedure, router } from "./_core/trpc";
 import { storagePut } from "./storage";
-import { analyzeUrbanInstruction } from "./urbanAI";
-import { downloadStorageBytes, extractGeoPackageLot, extractSpreadsheetLot, renderDocument, signPdfWithSystemStamp } from "./urbanDocs";
+import { analyzeUploadedFile, analyzeUrbanInstruction } from "./urbanAI";
+import { downloadStorageBytes, extractGeoPackageLot, extractSpreadsheetLot, inspectDocxTemplate, renderDocument, signPdfWithSystemStamp } from "./urbanDocs";
+import { documentSchemas } from "../shared/documentFields";
 
 const filePayload = z.object({
   filename: z.string().min(1).max(255),
@@ -51,6 +52,25 @@ export const appRouter = router({
       const { id, ...changes } = input;
       return db.updateRequest(ctx.user.id, id, changes);
     }),
+    applyFileExtraction: protectedProcedure.input(z.object({ id: z.number().int().positive(), fields: z.record(z.string(), z.string().max(4000)) })).mutation(async ({ ctx, input }) => {
+      const request = await db.getRequestById(ctx.user.id, input.id);
+      if (!request) throw new TRPCError({ code: "NOT_FOUND", message: "Solicitação não encontrada." });
+      const allowed = new Set(documentSchemas[request.documentType as keyof typeof documentSchemas].fields.map((field) => field.key));
+      const reviewedFields = Object.fromEntries(Object.entries(input.fields).filter(([key, value]) => allowed.has(key) && value.trim()));
+      const baseFields = {
+        protocol: input.fields.protocolo?.trim() || undefined,
+        enrollment: input.fields.inscricao_imobiliaria?.trim() || undefined,
+        applicant: input.fields.interessado?.trim() || undefined,
+        description: input.fields.objeto?.trim() || undefined,
+      };
+      const updated = await db.updateRequest(ctx.user.id, input.id, { ...baseFields, formData: { ...(request.formData as Record<string, unknown> ?? {}), ...reviewedFields } });
+      const audit = await db.createAiAudit({ userId: ctx.user.id, requestId: input.id, feature: "file_extraction_apply", model: "human_review", inputSnapshot: { fields: input.fields }, outputSnapshot: { applied: [...Object.keys(reviewedFields), ...Object.entries(baseFields).filter(([, value]) => value).map(([key]) => key)] }, reviewStatus: "applied", reviewedById: ctx.user.id, reviewedAt: new Date() });
+      return { request: updated, auditId: audit.id };
+    }),
+    markReadyForReview: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      await db.updateRequestStatus(ctx.user.id, input.id, "ready_for_review");
+      return db.getRequestById(ctx.user.id, input.id);
+    }),
     files: protectedProcedure.input(z.object({ requestId: z.number().int().positive() })).query(({ ctx, input }) => db.listFilesForRequest(ctx.user.id, input.requestId)),
   }),
   uploads: router({
@@ -61,6 +81,18 @@ export const appRouter = router({
       const category = isImageFile(input.payload.filename) ? "image" : "input" as const;
       return storeFile({ userId: ctx.user.id, requestId: input.requestId, category, filename: input.payload.filename, mimeType: input.payload.mimeType, content });
     }),
+    analyzeRequestFile: protectedProcedure.input(z.object({ requestId: z.number().int().positive(), fileId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const request = await db.getRequestById(ctx.user.id, input.requestId);
+      const file = await db.getFileById(ctx.user.id, input.fileId);
+      if (!request || !file || file.requestId !== input.requestId) throw new TRPCError({ code: "NOT_FOUND", message: "Arquivo ou solicitação não encontrados." });
+      try {
+        const analysis = await analyzeUploadedFile({ documentType: request.documentType as keyof typeof documentSchemas, filename: file.filename, mimeType: file.mimeType, storageKey: file.storageKey });
+        const audit = await db.createAiAudit({ userId: ctx.user.id, requestId: request.id, feature: "file_extraction", model: "gpt-5-mini", inputSnapshot: { fileId: file.id, filename: file.filename, mimeType: file.mimeType }, outputSnapshot: analysis });
+        return { analysis, auditId: audit.id, fileId: file.id };
+      } catch (error) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error instanceof Error ? `Não foi possível analisar “${file.filename}”: ${error.message}` : "Não foi possível analisar o arquivo." });
+      }
+    }),
   }),
   templates: router({
     list: protectedProcedure.query(({ ctx }) => db.listTemplates(ctx.user.id)),
@@ -68,8 +100,11 @@ export const appRouter = router({
     upload: protectedProcedure.input(z.object({ documentType: z.enum(documentTypes), name: z.string().min(3).max(255), version: z.string().min(1).max(40).default("1.0"), payload: filePayload })).mutation(async ({ ctx, input }) => {
       if (getExtension(input.payload.filename) !== "docx") throw new TRPCError({ code: "BAD_REQUEST", message: "Os modelos devem ser enviados em DOCX." });
       const content = readPayload(input.payload);
+      const profile = inspectDocxTemplate(content);
+      if (!profile.markerNames.length) throw new TRPCError({ code: "BAD_REQUEST", message: "Para preservar o layout e preencher modelos futuros, inclua marcadores como {protocolo}, {endereco} ou {zoneamento} no corpo, cabeçalho ou rodapé do DOCX." });
       const file = await storeFile({ userId: ctx.user.id, category: "template", filename: input.payload.filename, mimeType: input.payload.mimeType, content });
-      return db.createTemplate({ userId: ctx.user.id, documentType: input.documentType, name: input.name, version: input.version, fileId: file.id });
+      const template = await db.createTemplate({ userId: ctx.user.id, documentType: input.documentType, name: input.name, version: input.version, fileId: file.id });
+      return { template, profile };
     }),
   }),
   references: router({
@@ -94,25 +129,27 @@ export const appRouter = router({
     }),
     crossReference: protectedProcedure.input(z.object({ requestId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       const request = await db.getRequestById(ctx.user.id, input.requestId);
-      if (!request?.enrollment) throw new TRPCError({ code: "BAD_REQUEST", message: "Informe uma inscrição imobiliária antes do cruzamento." });
+      if (!request) throw new TRPCError({ code: "NOT_FOUND", message: "Solicitação não encontrada." });
       const sources = await db.listSpatialSources(ctx.user.id);
       const extracted: Record<string, unknown> = {};
       const matchedSources: string[] = [];
       const sourceFailures: Array<{ source: string; message: string }> = [];
-      for (const source of sources) {
-        const file = await db.getFileById(ctx.user.id, source.fileId);
-        if (!file) continue;
-        try {
-          const result = source.kind === "geopackage" ? await extractGeoPackageLot(file.storageKey, request.enrollment) : await extractSpreadsheetLot(file.storageKey, request.enrollment);
-          if (result) {
-            Object.assign(extracted, result);
-            matchedSources.push(source.name);
+      if (request.enrollment) {
+        for (const source of sources) {
+          const file = await db.getFileById(ctx.user.id, source.fileId);
+          if (!file) continue;
+          try {
+            const result = source.kind === "geopackage" ? await extractGeoPackageLot(file.storageKey, request.enrollment) : await extractSpreadsheetLot(file.storageKey, request.enrollment);
+            if (result) {
+              Object.assign(extracted, result);
+              matchedSources.push(source.name);
+            }
+          } catch (error) {
+            sourceFailures.push({ source: source.name, message: error instanceof Error ? error.message : "Falha ao consultar a fonte territorial." });
           }
-        } catch (error) {
-          sourceFailures.push({ source: source.name, message: error instanceof Error ? error.message : "Falha ao consultar a fonte territorial." });
         }
       }
-      const updated = await db.updateRequestExtractedData(ctx.user.id, input.requestId, { ...extracted, fontes_consultadas: matchedSources, inscricao_consultada: request.enrollment });
+      const updated = await db.updateRequestExtractedData(ctx.user.id, input.requestId, { ...extracted, fontes_consultadas: matchedSources, inscricao_consultada: request.enrollment ?? null, cruzamento_pendente: !request.enrollment });
       return { request: updated, extractedData: updated?.extractedData ?? {}, matchedSources, sourceFailures, processedSources: sources.length };
     }),
   }),

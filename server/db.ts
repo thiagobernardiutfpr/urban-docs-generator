@@ -141,7 +141,7 @@ export async function updateRequestExtractedData(userId: number, id: number, ext
   if (!db) throw new Error("Banco de dados indisponível.");
   const current = await getRequestById(userId, id);
   if (!current) throw new Error("Solicitação não encontrada.");
-  if (!canTransitionRequestStatus(current.status as RequestStatus, "cross_referenced")) throw new Error("A solicitação não está em um estágio compatível com o cruzamento.");
+  if (current.status !== "cross_referenced" && !canTransitionRequestStatus(current.status as RequestStatus, "cross_referenced")) throw new Error("A solicitação não está em um estágio compatível com o cruzamento.");
   await db.update(documentRequests).set({ extractedData, status: "cross_referenced" }).where(and(eq(documentRequests.id, id), eq(documentRequests.userId, userId)));
   return getRequestById(userId, id);
 }

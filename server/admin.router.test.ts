@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
+import { Document, Packer, Paragraph } from "docx";
 
 const dbMock = vi.hoisted(() => ({
   setTemplateActive: vi.fn(),
@@ -72,7 +73,8 @@ describe("administração de acervos", () => {
 
   it("cadastra uma nova versão DOCX vinculada à tipologia selecionada", async () => {
     const caller = appRouter.createCaller(context());
-    await caller.templates.upload({ documentType: "parecer_eiv", name: "Parecer EIV 2.0", version: "2.0", payload: { filename: "modelo.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", contentBase64: "UEs=" } });
+    const model = await Packer.toBuffer(new Document({ sections: [{ children: [new Paragraph("Endereço: {endereco}")] }] }));
+    await caller.templates.upload({ documentType: "parecer_eiv", name: "Parecer EIV 2.0", version: "2.0", payload: { filename: "modelo.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", contentBase64: model.toString("base64") } });
     expect(dbMock.createFileRecord).toHaveBeenCalledWith(expect.objectContaining({ userId: 11, category: "template", filename: "modelo.docx" }));
     expect(dbMock.createTemplate).toHaveBeenCalledWith(expect.objectContaining({ userId: 11, documentType: "parecer_eiv", version: "2.0", fileId: 75 }));
   });

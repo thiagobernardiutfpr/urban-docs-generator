@@ -17,3 +17,13 @@
 - [x] Aplicar o mapeamento de dados também no cabeçalho do modelo oficial da certidão.
 - [x] Confirmar que a versão 5 não mantém valores demonstrativos do modelo oficial.
 - [x] Confirmar ausência de valores demonstrativos também em cabeçalhos e rodapés da versão 5.
+- [x] Mapear todos os modelos atuais e seus componentes de corpo, cabeçalho e rodapé.
+- [x] Generalizar a preservação de layout, cabeçalho e rodapé para modelos atuais e futuros.
+- [x] Implementar continuidade explícita entre cadastro, insumos, cruzamento, revisão e emissão.
+- [x] Permitir upload de PDF, imagens, DOCX/DOC e DWG em todos os tipos de solicitação.
+- [x] Extrair campos automaticamente dos arquivos enviados e apresentar revisão humana antes do preenchimento.
+- [x] Cobrir a emissão por modelos, a continuidade de etapas e a extração de campos com testes e validação visual.
+- [ ] Validar visualmente as cinco etapas, incluindo anexos, revisão humana, mapa e preparação para emissão.
+- [ ] Validar visualmente uma emissão no modelo ativo, confirmando preview e links finais no layout preservado.
+- [x] Alinhar a biblioteca administrativa de modelos à regra de marcadores para corpo, cabeçalho e rodapé.
+- [x] Atualizar a orientação do seletor de arquivo de modelo para corpo, cabeçalho e rodapé.

@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { Document, Header, Packer, Paragraph } from "docx";
+import { Document, Footer, Header, Packer, Paragraph } from "docx";
 import PizZip from "pizzip";
 import { canApproveEmission, canReviewAi, canTransitionRequestStatus, documentTypes, getExtension, isSpatialFile, isSupportedUpload, normalizeEnrollment, normalizeFieldName } from "../shared/urbanDocs";
 import { documentSchemas } from "../shared/documentFields";
 import { getDemonstrationRequest } from "../shared/documentDemoData";
 import { getPdfPreviewUrl } from "../shared/documentPreview";
-import { projectPosition, renderDocument, signPdfWithSystemStamp } from "./urbanDocs";
+import { inspectDocxTemplate, projectPosition, renderDocument, signPdfWithSystemStamp } from "./urbanDocs";
 
 const officialTemplatesPath = "/home/ubuntu/webdev-static-assets";
 const officialTemplateNames = [
@@ -66,6 +66,18 @@ describe("regras documentais urbanísticas", () => {
     expect(xml).toContain("Não informado");
     expect(xml).toContain("ZR2 - Zona Residencial Dois");
     expect(xml).toContain("Permitido");
+    expect(Buffer.from(output.pdfBytes).subarray(0, 4).toString()).toBe("%PDF");
+  });
+
+  it("preenche marcadores no corpo, cabeçalho e rodapé de modelos futuros sem alterar o layout", async () => {
+    const model = new Document({ sections: [{ headers: { default: new Header({ children: [new Paragraph("PROCESSO {protocolo}")] }) }, footers: { default: new Footer({ children: [new Paragraph("{interessado} — {data_emissao}")] }) }, children: [new Paragraph("Endereço: {endereco}"), new Paragraph("Zoneamento: {zoneamento}"), new Paragraph("Campo opcional: {bairro}")] }] });
+    const modelBytes = await Packer.toBuffer(model);
+    expect(inspectDocxTemplate(modelBytes)).toMatchObject({ markerNames: expect.arrayContaining(["protocolo", "interessado", "endereco", "zoneamento", "bairro"]), hasHeader: true, hasFooter: true, fillMode: "markers" });
+    const output = await renderDocument({ documentType: "parecer_urbanistico", templateBytes: modelBytes, fields: { protocolo: "PU-2026/01", interessado: "Interessado Atual", endereco: "Rua das Flores, 10", zoneamento: "ZR-3" } });
+    const zip = new PizZip(output.docxBytes);
+    expect(zip.file("word/document.xml")?.asText()).toContain("Rua das Flores, 10");
+    expect(zip.file("word/header1.xml")?.asText()).toContain("PU-2026/01");
+    expect(zip.file("word/footer1.xml")?.asText()).toContain("Interessado Atual");
     expect(Buffer.from(output.pdfBytes).subarray(0, 4).toString()).toBe("%PDF");
   });
 
