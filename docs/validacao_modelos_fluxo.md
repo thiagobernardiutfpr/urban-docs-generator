@@ -55,3 +55,5 @@ Na publicação, a ação persistente “Continuar sem anexos” foi acionada no
 ## Indisponibilidade do Assistente IA
 
 O serviço de IA retornou precondição 412 no ambiente publicado. A política de repetição agora considera 412 não recuperável, portanto não repete a chamada ao proxy. Uma chamada técnica autorizada ao mesmo contrato do Assistente IA retornou `SERVICE_UNAVAILABLE` com a mensagem: “Assistente de IA temporariamente indisponível. O preenchimento manual e a emissão do documento continuam disponíveis.” Nenhum processo, anexo ou emissão foi alterado durante essa validação.
+
+Na interface publicada, o painel do Assistente IA recebeu a mensagem técnica autorizada e manteve a resposta de indisponibilidade como um balão na conversa: “Assistente de IA temporariamente indisponível. O preenchimento manual e a emissão do documento continuam disponíveis.” A etapa 3 de 5 e todos os campos da revisão humana permaneceram visíveis e disponíveis atrás do painel, confirmando que a falha não bloqueia a continuidade manual.
