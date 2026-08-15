@@ -26,6 +26,14 @@ A tela de detalhe foi verificada após a inclusão da prévia. Cada uma das seis
 
 O assistente de nova solicitação foi conferido após o reposicionamento das ações. O botão “Registrar e continuar” permanece exposto na faixa inferior, separado da área reservada ao assistente flutuante.
 
-## Pendência operacional
+## Validação autenticada do percurso completo
 
-O percurso interativo autenticado das etapas 2 a 5 requer uma sessão válida do UrbanDocs no navegador. A validação foi interrompida na tela de login; não foram usados dados de credenciais nem criados registros de demonstração adicionais.
+Uma solicitação de validação identificada pelo protocolo `VALIDACAO-FLUXO-20260815` foi criada com autorização expressa, sem gerar documentos. O botão “Registrar e continuar” avançou da etapa de cadastro para anexos sem abrir o assistente flutuante. Sem anexos, a interface seguiu para revisão humana; após o preenchimento dos campos obrigatórios, prosseguiu ao mapa e à preparação para emissão.
+
+O cruzamento GeoPackage foi otimizado para pesquisar somente a inscrição normalizada, sem carregar integralmente as tabelas da base. O processo de validação passou a “Dados cruzados” e pôde ser retomado diretamente na etapa de mapa. O mapa informou corretamente que não havia geometria para a inscrição de teste, preservando a possibilidade de continuar até a preparação de emissão.
+
+A pré-visualização autenticada foi aberta no detalhe de uma emissão existente. O diálogo carregou o PDF no iframe e permaneceu acompanhado dos controles de exportação PDF e DOCX.
+
+A conferência final mostrou a primeira página de um PDF com sete páginas no visualizador incorporado, incluindo a barra do leitor de PDF, a identidade visual institucional, o conteúdo preenchido e a paginação. Essa prévia foi aberta a partir do controle “Prévia” da versão 6, cuja mesma linha preserva os links PDF e DOCX.
+
+No DOM da sessão autenticada, a prévia aberta contém um elemento `iframe` com o título “Pré-visualização do documento emitido em PDF” e URL de armazenamento do PDF com o fragmento `#view=FitH`. A mesma tela expõe seis ações de prévia e doze links de exportação, organizados em pares PDF/DOCX para as seis versões documentais.

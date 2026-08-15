@@ -23,15 +23,15 @@
 - [x] Permitir upload de PDF, imagens, DOCX/DOC e DWG em todos os tipos de solicitação.
 - [x] Extrair campos automaticamente dos arquivos enviados e apresentar revisão humana antes do preenchimento.
 - [x] Cobrir a emissão por modelos, a continuidade de etapas e a extração de campos com testes e validação visual.
-- [ ] Validar visualmente as cinco etapas, incluindo anexos, revisão humana, mapa e preparação para emissão.
+- [x] Validar visualmente as cinco etapas, incluindo anexos, revisão humana, mapa e preparação para emissão.
 - [x] Validar visualmente uma emissão no modelo ativo, confirmando preview e links finais no layout preservado.
 - [x] Alinhar a biblioteca administrativa de modelos à regra de marcadores para corpo, cabeçalho e rodapé.
 - [x] Atualizar a orientação do seletor de arquivo de modelo para corpo, cabeçalho e rodapé.
 - [x] Validar no navegador autenticado o detalhe de processo emitido, incluindo o preview e os links PDF/DOCX.
 - [x] Registrar evidência textual da tela de emissão validada.
-- [ ] Abrir a pré-visualização autenticada do documento emitido e registrar a evidência do iframe junto aos links de exportação.
+- [x] Abrir a pré-visualização autenticada do documento emitido e registrar a evidência do iframe junto aos links de exportação.
 - [x] Exibir a pré-visualização do PDF diretamente no detalhe de cada versão emitida.
-- [ ] Impedir que o assistente flutuante intercepte o botão de avanço do fluxo de solicitação.
-- [ ] Confirmar no navegador autenticado a transição do cadastro para anexos sem abrir o assistente flutuante.
-- [ ] Diagnosticar e corrigir o cruzamento territorial que não concluiu na solicitação de validação.
-- [ ] Permitir retomar um processo em andamento diretamente na etapa correspondente do assistente.
+- [x] Impedir que o assistente flutuante intercepte o botão de avanço do fluxo de solicitação.
+- [x] Confirmar no navegador autenticado a transição do cadastro para anexos sem abrir o assistente flutuante.
+- [x] Diagnosticar e corrigir o cruzamento territorial que não concluiu na solicitação de validação.
+- [x] Permitir retomar um processo em andamento diretamente na etapa correspondente do assistente.
