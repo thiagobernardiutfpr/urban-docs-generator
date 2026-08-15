@@ -42,6 +42,7 @@
 - [x] Registrar tecnicamente que a ausência original não pôde ser reproduzida após a versão anterior e comparar a nova ação persistente.
 - [x] Garantir uma ação de avanço persistente no rodapé da etapa 2, independente da área de anexos.
 - [x] Validar visualmente e por interação a continuidade de anexos para revisão na publicação.
-- [ ] Validar no ambiente publicado a resolução do erro após a continuidade de anexos, com mensagem amigável e fluxo não bloqueado.
-- [ ] Cobrir o cenário corrigido com teste e validar a operação publicada.
+- [ ] Validar na interface publicada a mensagem amigável da IA indisponível e a continuidade do preenchimento manual.
+- [ ] Registrar evidência verificável da operação publicada após a correção 412.
+- [x] Exibir de forma persistente no painel do Assistente IA a orientação de indisponibilidade sem bloquear a revisão.
 - [x] Tratar respostas 412 do serviço de IA sem repetição automática e sem bloquear o fluxo documental.

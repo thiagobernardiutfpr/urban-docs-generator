@@ -4,10 +4,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { Bot, Send, Sparkles } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
 
 type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 const starter: ChatMessage[] = [{ role: "system", content: "Você é o Assistente UrbanDocs." }];
+
+export const assistantUnavailableMessage = (error?: { message?: string }) =>
+  error?.message?.trim() || "Assistente de IA temporariamente indisponível. O preenchimento manual e a emissão do documento continuam disponíveis.";
 
 export default function UrbanGlobalAssistant() {
   const [messages, setMessages] = useState<ChatMessage[]>(starter);
@@ -15,7 +17,7 @@ export default function UrbanGlobalAssistant() {
   const [draft, setDraft] = useState("");
   const chat = trpc.ai.chat.useMutation({
     onSuccess: (result) => setMessages((current) => [...current, { role: "assistant", content: result.answer }]),
-    onError: (error) => toast.error(error.message || "O assistente não conseguiu responder agora."),
+    onError: (error) => setMessages((current) => [...current, { role: "assistant", content: assistantUnavailableMessage(error) }]),
   });
   const sendMessage = () => {
     const content = draft.trim();

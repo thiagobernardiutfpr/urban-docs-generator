@@ -51,3 +51,7 @@ A ausência originalmente relatada não voltou a ocorrer na versão anterior qua
 A correção adiciona a mesma ação à barra de navegação persistente no rodapé do assistente. A tela de desenvolvimento confirmou “Continuar sem anexos” fixado na parte inferior, separado do botão flutuante do assistente. O teste de componente cobre a atualização desse botão persistente para “Analisar anexos e continuar” quando um arquivo é selecionado.
 
 Na publicação, a ação persistente “Continuar sem anexos” foi acionada no processo `TESTE/2026`. A interface exibiu a confirmação “Insumos registrados” e abriu a etapa 3 de 5, “Conferir dados antes do mapa”, sem necessidade de rolagem até o cartão de anexos.
+
+## Indisponibilidade do Assistente IA
+
+O serviço de IA retornou precondição 412 no ambiente publicado. A política de repetição agora considera 412 não recuperável, portanto não repete a chamada ao proxy. Uma chamada técnica autorizada ao mesmo contrato do Assistente IA retornou `SERVICE_UNAVAILABLE` com a mensagem: “Assistente de IA temporariamente indisponível. O preenchimento manual e a emissão do documento continuam disponíveis.” Nenhum processo, anexo ou emissão foi alterado durante essa validação.
