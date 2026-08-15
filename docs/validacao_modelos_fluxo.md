@@ -49,3 +49,5 @@ A cobertura de componente também executa os cliques reais no assistente: sem an
 A ausência originalmente relatada não voltou a ocorrer na versão anterior quando a solicitação em coleta foi reaberta no ambiente publicado. A análise da composição revelou, porém, que a continuidade dependia de um cartão posicionado abaixo das áreas de anexos e das referências territoriais; em telas menores ou após rolagem, a ação poderia ficar fora da área visível.
 
 A correção adiciona a mesma ação à barra de navegação persistente no rodapé do assistente. A tela de desenvolvimento confirmou “Continuar sem anexos” fixado na parte inferior, separado do botão flutuante do assistente. O teste de componente cobre a atualização desse botão persistente para “Analisar anexos e continuar” quando um arquivo é selecionado.
+
+Na publicação, a ação persistente “Continuar sem anexos” foi acionada no processo `TESTE/2026`. A interface exibiu a confirmação “Insumos registrados” e abriu a etapa 3 de 5, “Conferir dados antes do mapa”, sem necessidade de rolagem até o cartão de anexos.
