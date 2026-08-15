@@ -22,6 +22,8 @@ O PDF da versão 6 do processo 49316/2026 foi baixado do acervo e inspecionado v
 
 Na sessão autenticada, o detalhe do processo 49316/2026 confirmou o status concluído, a lista de seis versões documentais e os controles PDF/DOCX em cada versão. A evidência textual da interface também confirmou o interessado, o objeto e a ação de reemitir nova versão.
 
+A tela de detalhe foi verificada após a inclusão da prévia. Cada uma das seis versões agora apresenta os controles **Prévia**, **PDF** e **DOCX**, sob a coluna “Visualizar e exportar”.
+
 ## Pendência operacional
 
 O percurso interativo autenticado das etapas 2 a 5 requer uma sessão válida do UrbanDocs no navegador. A validação foi interrompida na tela de login; não foram usados dados de credenciais nem criados registros de demonstração adicionais.

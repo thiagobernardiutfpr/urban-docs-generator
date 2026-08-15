@@ -30,4 +30,5 @@
 - [x] Validar no navegador autenticado o detalhe de processo emitido, incluindo o preview e os links PDF/DOCX.
 - [x] Registrar evidência textual da tela de emissão validada.
 - [ ] Abrir a pré-visualização autenticada do documento emitido e registrar a evidência do iframe junto aos links de exportação.
-- [ ] Exibir a pré-visualização do PDF diretamente no detalhe de cada versão emitida.
+- [x] Exibir a pré-visualização do PDF diretamente no detalhe de cada versão emitida.
+- [ ] Impedir que o assistente flutuante intercepte o botão de avanço do fluxo de solicitação.
