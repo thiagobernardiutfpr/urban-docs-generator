@@ -68,6 +68,13 @@ export function canTransitionRequestStatus(from: RequestStatus, to: RequestStatu
   return validStatusTransitions[from].includes(to);
 }
 
+export function requestWorkflowStep(status: RequestStatus): number {
+  if (status === "draft") return 1;
+  if (status === "collecting" || status === "failed") return 2;
+  if (status === "cross_referenced") return 4;
+  return 5;
+}
+
 export function normalizeEnrollment(value: unknown): string {
   return String(value ?? "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
 }

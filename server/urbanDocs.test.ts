@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { Document, Footer, Header, Packer, Paragraph } from "docx";
 import PizZip from "pizzip";
-import { canApproveEmission, canReviewAi, canTransitionRequestStatus, documentTypes, getExtension, isSpatialFile, isSupportedUpload, normalizeEnrollment, normalizeFieldName } from "../shared/urbanDocs";
+import { canApproveEmission, canReviewAi, canTransitionRequestStatus, documentTypes, getExtension, isSpatialFile, isSupportedUpload, normalizeEnrollment, normalizeFieldName, requestWorkflowStep } from "../shared/urbanDocs";
 import { documentSchemas } from "../shared/documentFields";
 import { getDemonstrationRequest } from "../shared/documentDemoData";
 import { getPdfPreviewUrl } from "../shared/documentPreview";
@@ -148,6 +148,13 @@ describe("regras documentais urbanísticas", () => {
     expect(canTransitionRequestStatus("completed", "processing")).toBe(true);
     expect(canTransitionRequestStatus("draft", "completed")).toBe(false);
     expect(canTransitionRequestStatus("collecting", "completed")).toBe(false);
+  });
+
+  it("retoma cada status intermediário na etapa contínua correspondente", () => {
+    expect(requestWorkflowStep("collecting")).toBe(2);
+    expect(requestWorkflowStep("cross_referenced")).toBe(4);
+    expect(requestWorkflowStep("ready_for_review")).toBe(5);
+    expect(requestWorkflowStep("failed")).toBe(2);
   });
 
   it("aplica acesso mínimo para revisão de IA e aprovação final", () => {
