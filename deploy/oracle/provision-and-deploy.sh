@@ -81,6 +81,16 @@ read_configuration() {
   local forge_key="${BUILT_IN_FORGE_API_KEY:-}"
   local jwt_secret="${JWT_SECRET:-}"
 
+  # Em atualizações, preserve valores já configurados. O arquivo não é
+  # carregado como código shell porque URLs e segredos podem conter caracteres
+  # que tenham significado especial para o Bash.
+  if [[ -f "$ENV_FILE" ]]; then
+    [[ -n "$database_url" ]] || database_url="$(sed -n 's/^DATABASE_URL=//p' "$ENV_FILE" | head -n 1)"
+    [[ -n "$forge_url" ]] || forge_url="$(sed -n 's/^BUILT_IN_FORGE_API_URL=//p' "$ENV_FILE" | head -n 1)"
+    [[ -n "$forge_key" ]] || forge_key="$(sed -n 's/^BUILT_IN_FORGE_API_KEY=//p' "$ENV_FILE" | head -n 1)"
+    [[ -n "$jwt_secret" ]] || jwt_secret="$(sed -n 's/^JWT_SECRET=//p' "$ENV_FILE" | head -n 1)"
+  fi
+
   if [[ -z "$database_url" ]]; then
     database_url="$(read_tty 'DATABASE_URL (mysql://urban_docs_app:SENHA@10.0.1.190:3306/urban_docs): ')"
   fi
