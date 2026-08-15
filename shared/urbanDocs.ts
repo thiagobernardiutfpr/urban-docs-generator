@@ -83,6 +83,14 @@ export function requestWorkflowActionLabel(step: number, attachmentCount = 0): s
   return "Gerar DOCX e PDF";
 }
 
+export function attachmentContinuation(attachmentCount: number) {
+  return {
+    actionLabel: requestWorkflowActionLabel(2, attachmentCount),
+    nextStep: 3,
+    requiresAnalysis: attachmentCount > 0,
+  } as const;
+}
+
 export function normalizeEnrollment(value: unknown): string {
   return String(value ?? "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
 }

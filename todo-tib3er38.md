@@ -35,5 +35,7 @@
 - [x] Confirmar no navegador autenticado a transição do cadastro para anexos sem abrir o assistente flutuante.
 - [x] Diagnosticar e corrigir o cruzamento territorial que não concluiu na solicitação de validação.
 - [x] Permitir retomar um processo em andamento diretamente na etapa correspondente do assistente.
-- [ ] Restaurar o botão explícito de continuidade na etapa 2 de anexos.
-- [ ] Validar a passagem de anexos para revisão com e sem arquivos enviados.
+- [x] Restaurar o botão explícito de continuidade na etapa 2 de anexos.
+- [x] Validar a passagem de anexos para revisão com e sem arquivos enviados.
+- [x] Cobrir o avanço efetivo da etapa 2 para revisão sem arquivo em teste de componente.
+- [x] Cobrir upload, análise e avanço efetivo da etapa 2 para revisão em teste de componente.

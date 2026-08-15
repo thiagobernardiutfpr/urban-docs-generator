@@ -37,3 +37,9 @@ A pré-visualização autenticada foi aberta no detalhe de uma emissão existent
 A conferência final mostrou a primeira página de um PDF com sete páginas no visualizador incorporado, incluindo a barra do leitor de PDF, a identidade visual institucional, o conteúdo preenchido e a paginação. Essa prévia foi aberta a partir do controle “Prévia” da versão 6, cuja mesma linha preserva os links PDF e DOCX.
 
 No DOM da sessão autenticada, a prévia aberta contém um elemento `iframe` com o título “Pré-visualização do documento emitido em PDF” e URL de armazenamento do PDF com o fragmento `#view=FitH`. A mesma tela expõe seis ações de prévia e doze links de exportação, organizados em pares PDF/DOCX para as seis versões documentais.
+
+Na etapa de anexos, uma solicitação em coleta foi reaberta visualmente e exibiu o cartão “Próxima etapa” com a ação “Continuar sem anexos”. A variação com arquivos é coberta pelo teste de rótulos do fluxo, que apresenta “Analisar anexos e continuar” quando há ao menos um anexo selecionado.
+
+A decisão de continuidade da etapa de anexos também foi centralizada em teste. Sem arquivos, ela retorna a ação “Continuar sem anexos” e a próxima etapa 3; com ao menos um anexo, retorna “Analisar anexos e continuar” e a mesma etapa 3, exigindo análise antes da revisão.
+
+A cobertura de componente também executa os cliques reais no assistente: sem anexo, “Continuar sem anexos” muda a interface para “Conferir dados antes do mapa”; com um PDF, o teste confirma o envio, a análise e a mesma mudança para a revisão humana.

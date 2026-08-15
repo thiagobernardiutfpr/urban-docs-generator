@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { Document, Footer, Header, Packer, Paragraph } from "docx";
 import PizZip from "pizzip";
-import { canApproveEmission, canReviewAi, canTransitionRequestStatus, documentTypes, getExtension, isSpatialFile, isSupportedUpload, normalizeEnrollment, normalizeFieldName, requestWorkflowActionLabel, requestWorkflowStep } from "../shared/urbanDocs";
+import { attachmentContinuation, canApproveEmission, canReviewAi, canTransitionRequestStatus, documentTypes, getExtension, isSpatialFile, isSupportedUpload, normalizeEnrollment, normalizeFieldName, requestWorkflowActionLabel, requestWorkflowStep } from "../shared/urbanDocs";
 import { documentSchemas } from "../shared/documentFields";
 import { getDemonstrationRequest } from "../shared/documentDemoData";
 import { getPdfPreviewUrl } from "../shared/documentPreview";
@@ -160,6 +160,11 @@ describe("regras documentais urbanísticas", () => {
   it("oferece continuidade explícita na etapa de anexos, mesmo sem arquivo", () => {
     expect(requestWorkflowActionLabel(2, 0)).toBe("Continuar sem anexos");
     expect(requestWorkflowActionLabel(2, 1)).toBe("Analisar anexos e continuar");
+  });
+
+  it("leva anexos sem arquivo e com anexo analisável à etapa de revisão", () => {
+    expect(attachmentContinuation(0)).toMatchObject({ actionLabel: "Continuar sem anexos", nextStep: 3, requiresAnalysis: false });
+    expect(attachmentContinuation(1)).toMatchObject({ actionLabel: "Analisar anexos e continuar", nextStep: 3, requiresAnalysis: true });
   });
 
   it("aplica acesso mínimo para revisão de IA e aprovação final", () => {
