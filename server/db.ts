@@ -90,6 +90,21 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function getOrCreateAnonymousUser(openId: string) {
+  const existing = await getUserByOpenId(openId);
+  if (existing) return existing;
+
+  await upsertUser({
+    openId,
+    name: "Acesso público",
+    email: null,
+    loginMethod: "anonymous",
+    role: "author",
+    lastSignedIn: new Date(),
+  });
+  return getUserByOpenId(openId);
+}
+
 export type RequestInput = {
   protocol: string;
   documentType: string;

@@ -5,10 +5,9 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { allowedUploadExtensions, documentTypeLabels, documentTypes, maxUploadBytes, type DocumentType } from "@shared/urbanDocs";
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Database, Download, FileText, Loader2, LogIn, MapPinned, Send, UploadCloud, WandSparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Database, Download, FileText, Loader2, MapPinned, Send, UploadCloud, WandSparkles } from "lucide-react";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
@@ -107,7 +106,6 @@ function ImageAttachmentPreview({ file }: { file: File }) {
 
 export default function RequestWizard() {
   const [, setLocation] = useLocation();
-  const { isAuthenticated, loading } = useAuth();
   const [step, setStep] = useState(1);
   const [documentType, setDocumentType] = useState<DocumentType>(documentTypes[0]);
   const [protocol, setProtocol] = useState("");
@@ -144,11 +142,6 @@ export default function RequestWizard() {
   };
 
   const saveInitialData = async () => {
-    if (!isAuthenticated) {
-      toast.info("Entre com sua conta para registrar a solicitação.");
-      startLogin();
-      return;
-    }
     if (!protocol.trim() || !enrollment.trim() || !applicant.trim()) {
       toast.error("Preencha protocolo, inscrição imobiliária e interessado antes de continuar.");
       return;
@@ -211,7 +204,7 @@ export default function RequestWizard() {
         <Button variant="outline" onClick={() => setLocation("/")} className="rounded-xl border-[#d8e0d6] bg-[#fcfbf7] text-xs text-[#426055]">Salvar e sair</Button>
       </div>
 
-      {!loading && !isAuthenticated && <div className="flex flex-col gap-3 rounded-2xl border border-[#dce7ca] bg-[#f1f6e7] p-4 text-[#456136] sm:flex-row sm:items-center sm:justify-between"><p className="text-[11px] leading-5">Você está em modo de demonstração. Entre para cadastrar arquivos, consultar bases privadas e gerar versões oficiais.</p><Button onClick={() => startLogin()} size="sm" className="rounded-lg bg-[#294c40] text-[11px] hover:bg-[#1d3e35]"><LogIn className="mr-1.5 h-3.5 w-3.5" />Entrar</Button></div>}
+      <div className="rounded-2xl border border-[#dce7ca] bg-[#f1f6e7] p-4 text-[11px] leading-5 text-[#456136]">Este fluxo funciona sem login ou senha. A solicitação e seus arquivos ficam associados à sessão anônima deste navegador.</div>
 
       <div className="rounded-[18px] border border-[#dce4d8] bg-[#fbfbf6] px-5 py-4">
         <div className="mb-3 flex justify-between font-mono-ui text-[9px] uppercase tracking-[.14em] text-[#769087]"><span>Etapa {step} de 4</span><span>{completion}% concluído</span></div>

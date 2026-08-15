@@ -19,9 +19,8 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { Archive, Building2, Database, FileText, History, LayoutDashboard, LibraryBig, LogIn, LogOut, PanelLeft, Plus, Settings2, ShieldCheck } from "lucide-react";
+import { Archive, Building2, Database, FileText, History, LayoutDashboard, LibraryBig, PanelLeft, Plus, Settings2, ShieldCheck } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -52,7 +51,7 @@ export default function DashboardLayout({
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
-  const { loading, user } = useAuth();
+  const { user } = useAuth();
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
@@ -82,7 +81,7 @@ function DashboardLayoutContent({
   children,
   setSidebarWidth,
 }: DashboardLayoutContentProps) {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
@@ -193,26 +192,19 @@ function DashboardLayoutContent({
                   </Avatar>
                   <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
                     <p className="text-sm font-medium truncate leading-none">
-                      {user?.name || "Equipe técnica"}
+                      {user?.loginMethod === "anonymous" ? "Acesso público" : user?.name || "Equipe técnica"}
                     </p>
                     <p className="text-xs text-muted-foreground truncate mt-1.5">
-                      {user?.email || "Gestão municipal"}
+                      {user?.loginMethod === "anonymous" ? "Sem login ou senha" : user?.email || "Gestão municipal"}
                     </p>
                   </div>
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52 rounded-xl">
-                {user ? (
-                  <DropdownMenuItem onClick={logout} className="cursor-pointer text-destructive focus:text-destructive">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Sair da conta</span>
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem onClick={() => startLogin()} className="cursor-pointer">
-                    <LogIn className="mr-2 h-4 w-4" />
-                    <span>Entrar na conta</span>
-                  </DropdownMenuItem>
-                )}
+                <DropdownMenuItem disabled className="opacity-100">
+                  <ShieldCheck className="mr-2 h-4 w-4 text-[#6d913f]" />
+                  <span>Acesso público ativo</span>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarFooter>
