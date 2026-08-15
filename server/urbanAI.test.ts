@@ -1,13 +1,23 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const invokeLLM = vi.hoisted(() => vi.fn());
-vi.mock("./_core/llm", () => ({ invokeLLM }));
+const mocks = vi.hoisted(() => ({
+  invokeLLM: vi.fn(),
+  createAiAudit: vi.fn(),
+}));
+vi.mock("./_core/llm", () => ({ invokeLLM: mocks.invokeLLM }));
+vi.mock("./db", () => ({ createAiAudit: mocks.createAiAudit }));
+
+const invokeLLM = mocks.invokeLLM;
 
 import { analyzeUrbanInstruction } from "./urbanAI";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
 describe("assistente de IA urbanístico", () => {
+  beforeEach(() => {
+    mocks.createAiAudit.mockResolvedValue({ id: 101 });
+  });
+
   it("solicita análise estruturada e devolve dados para revisão humana", async () => {
     invokeLLM.mockResolvedValue({ choices: [{ message: { content: JSON.stringify({ summary: "Instrução parcialmente preenchida.", missingFields: ["Zoneamento"], riskFlags: ["Conferir fonte territorial."], suggestedDraft: "Conforme dados informados, a análise depende de validação.", reviewNotice: "Revisão técnica obrigatória." }) } }] });
     const result = await analyzeUrbanInstruction({ documentType: "certidao_tombamento", protocol: "2026/001", fields: { endereco: "Rua A", resultado_tombamento: "Em análise" } });

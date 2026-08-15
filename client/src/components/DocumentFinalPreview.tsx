@@ -16,13 +16,31 @@ function ApprovalSignaturePanel({ output }: { output: Required<Pick<FinalDocumen
   const { user } = useAuth();
   const [approvalStatus, setApprovalStatus] = useState<"pending" | "approved" | "rejected">("pending");
   const [signedUrl, setSignedUrl] = useState<string>();
-  const decide = trpc.approvals.decide.useMutation({ onSuccess: (approval) => setApprovalStatus(approval.status) });
-  const sign = trpc.signatures.create.useMutation({ onSuccess: (result) => setSignedUrl(result.signedPdf?.storageUrl) });
+  const approvalQuery = trpc.approvals.get.useQuery({ generatedDocumentId: output.generatedDocumentId });
+  const signatureQuery = trpc.signatures.get.useQuery({ generatedDocumentId: output.generatedDocumentId });
+  const decide = trpc.approvals.decide.useMutation({
+    onSuccess: (approval) => {
+      setApprovalStatus(approval.status);
+      void approvalQuery.refetch();
+    },
+  });
+  const sign = trpc.signatures.create.useMutation({
+    onSuccess: (result) => {
+      setSignedUrl(result.signedPdf?.storageUrl);
+      void signatureQuery.refetch();
+    },
+  });
   const canApprove = user?.role === "approver" || user?.role === "admin";
+  const persistedSignedUrl = signatureQuery.data?.signedPdf?.storageUrl;
+  const signedDocumentUrl = signedUrl ?? persistedSignedUrl;
+  const hasPersistedSignature = Boolean(signatureQuery.data?.signature);
+  const stateLoading = approvalQuery.isLoading || signatureQuery.isLoading;
+  const stateError = approvalQuery.isError || signatureQuery.isError;
   const approve = () => decide.mutate({ approvalId: output.approvalId, status: "approved", decisionNote: "Aprovado após conferência da pré-visualização." });
   const reject = () => decide.mutate({ approvalId: output.approvalId, status: "rejected", decisionNote: "Devolvido para ajustes após conferência." });
   const applySignature = () => sign.mutate({ generatedDocumentId: output.generatedDocumentId });
-  return <section className="mt-7 rounded-2xl border border-[#dce5d4] bg-[#f4f8ed] p-5"><div className="flex items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#dfeec9] text-[#567c35]"><ShieldCheck className="h-5 w-5" /></span><div className="flex-1"><p className="text-[12px] font-bold text-[#315446]">Aprovação e assinatura institucional</p><p className="mt-1 text-[10px] leading-5 text-[#62796e]">A assinatura institucional registra o aprovador, data, código de verificação e SHA-256 do PDF original. Não substitui certificado digital qualificado quando a norma aplicável o exigir.</p>{approvalStatus === "pending" && <div className="mt-4 flex flex-wrap gap-2">{canApprove ? <><Button disabled={decide.isPending} onClick={approve} className="h-9 rounded-lg bg-[#234a40] text-[10px] hover:bg-[#173d36]">Aprovar emissão</Button><Button disabled={decide.isPending} onClick={reject} variant="outline" className="h-9 rounded-lg border-[#d1ddd0] bg-white text-[10px]">Devolver para ajustes</Button></> : <span className="rounded-lg bg-white px-3 py-2 text-[10px] text-[#6b8178]">Aguardando decisão de um aprovador.</span>}</div>}{approvalStatus === "approved" && <div className="mt-4 flex flex-wrap items-center gap-2"><span className="rounded-lg bg-[#e1efd4] px-3 py-2 text-[10px] font-bold text-[#4f7431]">Emissão aprovada</span>{canApprove && <Button disabled={sign.isPending || Boolean(signedUrl)} onClick={applySignature} className="h-9 rounded-lg bg-[#517b35] text-[10px] hover:bg-[#456b2d]"><FileCheck2 className="mr-1.5 h-3.5 w-3.5" />{sign.isPending ? "Assinando…" : "Assinar documento"}</Button>}{signedUrl && <a href={signedUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-[#bcd3b2] bg-white px-3 py-2 text-[10px] font-bold text-[#4f7431]">Abrir PDF assinado</a>}</div>}{approvalStatus === "rejected" && <p className="mt-4 text-[10px] font-bold text-[#a45343]">Documento devolvido para ajustes.</p>}</div></div></section>;
+
+  return <section className="mt-7 rounded-2xl border border-[#dce5d4] bg-[#f4f8ed] p-5"><div className="flex items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#dfeec9] text-[#567c35]"><ShieldCheck className="h-5 w-5" /></span><div className="flex-1"><p className="text-[12px] font-bold text-[#315446]">Aprovação e assinatura institucional</p><p className="mt-1 text-[10px] leading-5 text-[#62796e]">A assinatura institucional registra o aprovador, data, código de verificação e SHA-256 do PDF original. Não substitui certificado digital qualificado quando a norma aplicável o exigir.</p>{stateLoading && <p className="mt-4 rounded-lg bg-white px-3 py-2 text-[10px] text-[#6b8178]">Consultando o estado persistido da emissão…</p>}{!stateLoading && stateError && <p className="mt-4 rounded-lg border border-[#efc6c0] bg-[#fff4f1] px-3 py-2 text-[10px] leading-5 text-[#8d4035]">Não foi possível consultar o estado da aprovação. Atualize a página antes de tomar uma nova decisão.</p>}{!stateLoading && !stateError && approvalStatus === "pending" && <div className="mt-4 flex flex-wrap gap-2">{canApprove ? <><Button disabled={decide.isPending} onClick={approve} className="h-9 rounded-lg bg-[#234a40] text-[10px] hover:bg-[#173d36]">Aprovar emissão</Button><Button disabled={decide.isPending} onClick={reject} variant="outline" className="h-9 rounded-lg border-[#d1ddd0] bg-white text-[10px]">Devolver para ajustes</Button></> : <span className="rounded-lg bg-white px-3 py-2 text-[10px] text-[#6b8178]">Aguardando decisão de um aprovador.</span>}</div>}{!stateLoading && !stateError && approvalStatus === "approved" && <div className="mt-4 flex flex-wrap items-center gap-2"><span className="rounded-lg bg-[#e1efd4] px-3 py-2 text-[10px] font-bold text-[#4f7431]">Emissão aprovada</span>{canApprove && !hasPersistedSignature && !signedUrl && <Button disabled={sign.isPending} onClick={applySignature} className="h-9 rounded-lg bg-[#517b35] text-[10px] hover:bg-[#456b2d]"><FileCheck2 className="mr-1.5 h-3.5 w-3.5" />{sign.isPending ? "Assinando…" : "Assinar documento"}</Button>}{hasPersistedSignature && <span className="rounded-lg bg-white px-3 py-2 text-[10px] font-bold text-[#4f7431]">Assinatura registrada</span>}{signedDocumentUrl && <a href={signedDocumentUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-[#bcd3b2] bg-white px-3 py-2 text-[10px] font-bold text-[#4f7431]">Abrir PDF assinado</a>}</div>}{!stateLoading && !stateError && approvalStatus === "rejected" && <p className="mt-4 text-[10px] font-bold text-[#a45343]">Documento devolvido para ajustes.</p>}</div></div></section>;
 }
 
 export default function DocumentFinalPreview({ output }: { output: FinalDocumentOutput }) {

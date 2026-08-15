@@ -215,11 +215,22 @@ export const appRouter = router({
     setRole: adminProcedure.input(z.object({ userId: z.number().int().positive(), role: z.enum(userRoles) })).mutation(({ input }) => db.setUserRole(input.userId, input.role)),
   }),
   approvals: router({
+    get: protectedProcedure.input(z.object({ generatedDocumentId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      const generated = await db.getGeneratedDocumentById(input.generatedDocumentId);
+      if (!generated || generated.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND", message: "Aprovação do documento não encontrada." });
+      return db.getApprovalByDocument(input.generatedDocumentId);
+    }),
     list: roleProcedure(["reviewer", "approver", "admin"]).query(() => db.listDocumentApprovals()),
     decide: roleProcedure(["approver", "admin"]).input(z.object({ approvalId: z.number().int().positive(), status: z.enum(["approved", "rejected"]), decisionNote: z.string().max(2000).optional() })).mutation(({ ctx, input }) => db.decideDocumentApproval(input.approvalId, ctx.user.id, input.status, input.decisionNote)),
   }),
   signatures: router({
-    get: protectedProcedure.input(z.object({ generatedDocumentId: z.number().int().positive() })).query(({ input }) => db.getDocumentSignature(input.generatedDocumentId)),
+    get: protectedProcedure.input(z.object({ generatedDocumentId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      const generated = await db.getGeneratedDocumentById(input.generatedDocumentId);
+      if (!generated || generated.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND", message: "Assinatura do documento não encontrada." });
+      const signature = await db.getDocumentSignature(input.generatedDocumentId);
+      const signedPdf = signature ? await db.getFileById(ctx.user.id, signature.signedPdfFileId) : undefined;
+      return { signature, signedPdf };
+    }),
     list: roleProcedure(["reviewer", "approver", "admin"]).query(() => db.listDocumentSignatures()),
     previewDemo: protectedProcedure.mutation(async ({ ctx }) => {
       const demonstration = getDemonstrationRequest("certidao_tombamento");
