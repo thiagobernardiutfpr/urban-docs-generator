@@ -43,3 +43,9 @@ Na etapa de anexos, uma solicitação em coleta foi reaberta visualmente e exibi
 A decisão de continuidade da etapa de anexos também foi centralizada em teste. Sem arquivos, ela retorna a ação “Continuar sem anexos” e a próxima etapa 3; com ao menos um anexo, retorna “Analisar anexos e continuar” e a mesma etapa 3, exigindo análise antes da revisão.
 
 A cobertura de componente também executa os cliques reais no assistente: sem anexo, “Continuar sem anexos” muda a interface para “Conferir dados antes do mapa”; com um PDF, o teste confirma o envio, a análise e a mesma mudança para a revisão humana.
+
+## Comparação da ação da etapa de anexos
+
+A ausência originalmente relatada não voltou a ocorrer na versão anterior quando a solicitação em coleta foi reaberta no ambiente publicado. A análise da composição revelou, porém, que a continuidade dependia de um cartão posicionado abaixo das áreas de anexos e das referências territoriais; em telas menores ou após rolagem, a ação poderia ficar fora da área visível.
+
+A correção adiciona a mesma ação à barra de navegação persistente no rodapé do assistente. A tela de desenvolvimento confirmou “Continuar sem anexos” fixado na parte inferior, separado do botão flutuante do assistente. O teste de componente cobre a atualização desse botão persistente para “Analisar anexos e continuar” quando um arquivo é selecionado.

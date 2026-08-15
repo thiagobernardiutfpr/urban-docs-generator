@@ -39,3 +39,6 @@
 - [x] Validar a passagem de anexos para revisão com e sem arquivos enviados.
 - [x] Cobrir o avanço efetivo da etapa 2 para revisão sem arquivo em teste de componente.
 - [x] Cobrir upload, análise e avanço efetivo da etapa 2 para revisão em teste de componente.
+- [x] Registrar tecnicamente que a ausência original não pôde ser reproduzida após a versão anterior e comparar a nova ação persistente.
+- [x] Garantir uma ação de avanço persistente no rodapé da etapa 2, independente da área de anexos.
+- [ ] Validar visualmente e por interação a continuidade de anexos para revisão na publicação.

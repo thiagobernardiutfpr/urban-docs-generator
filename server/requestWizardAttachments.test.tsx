@@ -68,6 +68,7 @@ describe("RequestWizardWithMap — continuidade de anexos", () => {
   it("avança da etapa 2 para a revisão sem anexos", async () => {
     render(<RequestWizardWithMap />);
     const continueButton = await screen.findByRole("button", { name: "Continuar sem anexos" });
+    expect(screen.getByTestId("workflow-footer-action").textContent).toContain("Continuar sem anexos");
 
     fireEvent.click(continueButton);
 
@@ -85,6 +86,7 @@ describe("RequestWizardWithMap — continuidade de anexos", () => {
     const file = new File(["conteúdo"], "memorial.pdf", { type: "application/pdf" });
 
     fireEvent.change(fileInput, { target: { files: [file] } });
+    await waitFor(() => expect(screen.getByTestId("workflow-footer-action").textContent).toContain("Analisar anexos e continuar"));
     fireEvent.click(await screen.findByRole("button", { name: "Analisar anexos e continuar" }));
 
     await waitFor(() => expect(uploadRequest).toHaveBeenCalledTimes(1));
