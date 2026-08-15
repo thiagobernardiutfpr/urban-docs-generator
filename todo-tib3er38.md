@@ -32,3 +32,5 @@
 - [ ] Abrir a pré-visualização autenticada do documento emitido e registrar a evidência do iframe junto aos links de exportação.
 - [x] Exibir a pré-visualização do PDF diretamente no detalhe de cada versão emitida.
 - [ ] Impedir que o assistente flutuante intercepte o botão de avanço do fluxo de solicitação.
+- [ ] Confirmar no navegador autenticado a transição do cadastro para anexos sem abrir o assistente flutuante.
+- [ ] Diagnosticar e corrigir o cruzamento territorial que não concluiu na solicitação de validação.

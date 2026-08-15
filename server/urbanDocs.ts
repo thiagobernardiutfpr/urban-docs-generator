@@ -214,6 +214,12 @@ function quoteIdentifier(value: string) {
   return `"${value.replaceAll('"', '""')}"`;
 }
 
+export function buildGeoPackageEnrollmentQuery(table: string, column: string) {
+  const field = `CAST(${quoteIdentifier(column)} AS TEXT)`;
+  const normalized = `UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(${field}, '.', ''), '-', ''), '/', ''), ' ', ''), '(', ''), ')', ''))`;
+  return `SELECT * FROM ${quoteIdentifier(table)} WHERE ${normalized} = ? LIMIT 1`;
+}
+
 function recordFromRow(columns: string[], row: unknown[]) {
   return Object.fromEntries(columns.map((column, index) => [column, row[index] as string | number | boolean | null]));
 }
@@ -300,27 +306,32 @@ export async function extractGeoPackageLot(fileKey: string, enrollment: string):
   const bytes = await downloadStorageBytes(fileKey);
   const SQL = await initSqlJs({ locateFile: (file) => path.join(process.cwd(), "node_modules", "sql.js", "dist", file) });
   const database = new SQL.Database(bytes);
-  const tables = database.exec("SELECT table_name, srs_id FROM gpkg_contents WHERE data_type = 'features'")[0]?.values ?? [];
-  const target = normalizeEnrollment(enrollment);
-  for (const [tableRaw, sridRaw] of tables) {
-    const table = String(tableRaw);
-    const srid = Number(sridRaw) || 4326;
-    const tableInfo = database.exec(`PRAGMA table_info(${quoteIdentifier(table)})`)[0];
-    const columns = tableInfo?.values.map((row) => String(row[1])) ?? [];
-    const candidateColumn = enrollmentColumn(columns);
-    if (!candidateColumn) continue;
-    const result = database.exec(`SELECT * FROM ${quoteIdentifier(table)}`)[0];
-    if (!result) continue;
-    const candidateIndex = result.columns.indexOf(candidateColumn);
-    for (const row of result.values) {
-      if (normalizeEnrollment(row[candidateIndex]) !== target) continue;
-      const record = recordFromRow(result.columns, row);
-      const geometryColumn = columns.find((column) => normalizeFieldName(column).includes("geom"));
-      const geometry = geometryColumn ? geometryFromGpkg(record[geometryColumn], srid) : undefined;
-      return { ...record, sourceNames: table, sistema_referencia: `EPSG:${srid}`, ...(geometry ? { geometry } : {}) } as ExtractedLotData;
+  try {
+    const tables = database.exec("SELECT table_name, srs_id FROM gpkg_contents WHERE data_type = 'features'")[0]?.values ?? [];
+    const target = normalizeEnrollment(enrollment);
+    for (const [tableRaw, sridRaw] of tables) {
+      const table = String(tableRaw);
+      const srid = Number(sridRaw) || 4326;
+      const tableInfo = database.exec(`PRAGMA table_info(${quoteIdentifier(table)})`)[0];
+      const columns = tableInfo?.values.map((row) => String(row[1])) ?? [];
+      const candidateColumn = enrollmentColumn(columns);
+      if (!candidateColumn) continue;
+      const statement = database.prepare(buildGeoPackageEnrollmentQuery(table, candidateColumn));
+      try {
+        statement.bind([target]);
+        if (!statement.step()) continue;
+        const record = recordFromRow(statement.getColumnNames(), statement.get());
+        const geometryColumn = columns.find((column) => normalizeFieldName(column).includes("geom"));
+        const geometry = geometryColumn ? geometryFromGpkg(record[geometryColumn], srid) : undefined;
+        return { ...record, sourceNames: table, sistema_referencia: `EPSG:${srid}`, ...(geometry ? { geometry } : {}) } as ExtractedLotData;
+      } finally {
+        statement.free();
+      }
     }
+    return undefined;
+  } finally {
+    database.close();
   }
-  return undefined;
 }
 
 export async function renderDocument(input: {

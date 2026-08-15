@@ -24,6 +24,8 @@ Na sessão autenticada, o detalhe do processo 49316/2026 confirmou o status conc
 
 A tela de detalhe foi verificada após a inclusão da prévia. Cada uma das seis versões agora apresenta os controles **Prévia**, **PDF** e **DOCX**, sob a coluna “Visualizar e exportar”.
 
+O assistente de nova solicitação foi conferido após o reposicionamento das ações. O botão “Registrar e continuar” permanece exposto na faixa inferior, separado da área reservada ao assistente flutuante.
+
 ## Pendência operacional
 
 O percurso interativo autenticado das etapas 2 a 5 requer uma sessão válida do UrbanDocs no navegador. A validação foi interrompida na tela de login; não foram usados dados de credenciais nem criados registros de demonstração adicionais.

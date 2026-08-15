@@ -8,7 +8,7 @@ import { canApproveEmission, canReviewAi, canTransitionRequestStatus, documentTy
 import { documentSchemas } from "../shared/documentFields";
 import { getDemonstrationRequest } from "../shared/documentDemoData";
 import { getPdfPreviewUrl } from "../shared/documentPreview";
-import { inspectDocxTemplate, projectPosition, renderDocument, signPdfWithSystemStamp } from "./urbanDocs";
+import { buildGeoPackageEnrollmentQuery, inspectDocxTemplate, projectPosition, renderDocument, signPdfWithSystemStamp } from "./urbanDocs";
 
 const officialTemplatesPath = "/home/ubuntu/webdev-static-assets";
 const officialTemplateNames = [
@@ -173,6 +173,14 @@ describe("regras documentais urbanísticas", () => {
     expect(projected[0]).toBeLessThan(-51);
     expect(projected[1]).toBeGreaterThan(-24);
     expect(projected[1]).toBeLessThan(-23);
+  });
+
+  it("consulta GeoPackage por inscrição normalizada com limite de uma linha", () => {
+    const query = buildGeoPackageEnrollmentQuery("LOTES AT JUN23", "INSCRICAO");
+    expect(query).toContain('FROM "LOTES AT JUN23"');
+    expect(query).toContain('CAST("INSCRICAO" AS TEXT)');
+    expect(query).toContain("LIMIT 1");
+    expect(query).not.toContain('SELECT * FROM "LOTES AT JUN23";');
   });
 
   officialAssetTest("processa os três modelos oficiais associados ao acervo", async () => {
