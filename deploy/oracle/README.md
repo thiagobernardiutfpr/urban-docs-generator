@@ -97,15 +97,25 @@ Tenha em mãos o OCID do **compartment** onde a VM será criada, o OCID da tenan
 
 ### Execução no Cloud Shell
 
-Abra o Oracle Cloud Shell e execute:
+Abra o Oracle Cloud Shell e autentique o GitHub, pois o repositório do projeto é privado:
+
+```bash
+gh auth login
+```
+
+Escolha GitHub.com, HTTPS e o fluxo de login pelo navegador/código de dispositivo. Depois baixe os dois arquivos por meio da API autenticada:
 
 ```bash
 mkdir -p ~/urban-docs-deploy
 cd ~/urban-docs-deploy
-curl -fsSLO https://raw.githubusercontent.com/thiagobernardiutfpr/urban-docs-generator/main/deploy/oracle/cloud-shell-deploy.sh
+gh api -H 'Accept: application/vnd.github.raw' \
+  '/repos/thiagobernardiutfpr/urban-docs-generator/contents/deploy/oracle/cloud-shell-deploy.sh?ref=main' \
+  > cloud-shell-deploy.sh
 chmod 700 cloud-shell-deploy.sh
 ./cloud-shell-deploy.sh
 ```
+
+O script usa a sessão do `gh` para baixar o código privado e o deploy remoto. Não use `curl` diretamente no endereço `raw.githubusercontent.com` sem autenticação; um repositório privado retorna `404` nesse caso.
 
 O script solicitará os OCIDs e exibirá um plano antes de criar recursos. Digite `CREATE` somente depois de confirmar que a VCN, a subnet pública, a forma Always Free e os CIDRs estão corretos.
 
@@ -140,7 +150,7 @@ Se `APP_SUBNET_ID` não for informado, o script procura automaticamente a primei
 export APP_SUBNET_ID="ocid1.subnet.oc1..EXEMPLO"
 ```
 
-A primeira execução cria uma chave em `~/.ssh/urban_docs_cloudshell` no Cloud Shell. A chave privada permanece no Cloud Shell e não é enviada ao repositório. O script usa essa chave para o SCP e o SSH do deploy.
+A primeira execução cria uma chave em `~/.ssh/urban_docs_cloudshell` no Cloud Shell. A chave privada permanece no Cloud Shell e não é enviada ao repositório. O script usa essa chave para o SCP e o SSH do deploy. O código do repositório é baixado autenticadamente no Cloud Shell, compactado e enviado à VM; a VM não precisa clonar diretamente um repositório privado.
 
 ### Reexecução e preservação
 

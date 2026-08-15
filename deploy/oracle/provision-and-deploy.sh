@@ -7,6 +7,7 @@ set -Eeuo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/thiagobernardiutfpr/urban-docs-generator.git}"
 BRANCH="${BRANCH:-main}"
+SOURCE_ARCHIVE_FILE="${SOURCE_ARCHIVE_FILE:-}"
 APP_DIR="${APP_DIR:-/opt/urban-docs-generator}"
 CONFIG_DIR="${CONFIG_DIR:-/etc/urban-docs}"
 ENV_FILE="${CONFIG_DIR}/urban-docs.env"
@@ -130,9 +131,20 @@ EOF
 }
 
 checkout_application() {
-  log "Baixando ou atualizando o repositório"
+  log "Preparando o código da aplicação"
   mkdir -p "$(dirname "$APP_DIR")"
 
+  if [[ -n "$SOURCE_ARCHIVE_FILE" ]]; then
+    [[ -s "$SOURCE_ARCHIVE_FILE" ]] || fail "SOURCE_ARCHIVE_FILE não existe ou está vazio: $SOURCE_ARCHIVE_FILE"
+    rm -rf "$APP_DIR"
+    mkdir -p "$APP_DIR"
+    tar -xzf "$SOURCE_ARCHIVE_FILE" --strip-components=1 -C "$APP_DIR"
+    rm -f "$SOURCE_ARCHIVE_FILE"
+    log "Código recebido do Cloud Shell instalado em $APP_DIR"
+    return
+  fi
+
+  log "Baixando ou atualizando o repositório"
   if [[ -d "$APP_DIR/.git" ]]; then
     git -C "$APP_DIR" fetch --depth=1 origin "$BRANCH"
     git -C "$APP_DIR" checkout -q "$BRANCH"
