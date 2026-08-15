@@ -24,6 +24,10 @@
 - [x] Extrair campos automaticamente dos arquivos enviados e apresentar revisão humana antes do preenchimento.
 - [x] Cobrir a emissão por modelos, a continuidade de etapas e a extração de campos com testes e validação visual.
 - [ ] Validar visualmente as cinco etapas, incluindo anexos, revisão humana, mapa e preparação para emissão.
-- [ ] Validar visualmente uma emissão no modelo ativo, confirmando preview e links finais no layout preservado.
+- [x] Validar visualmente uma emissão no modelo ativo, confirmando preview e links finais no layout preservado.
 - [x] Alinhar a biblioteca administrativa de modelos à regra de marcadores para corpo, cabeçalho e rodapé.
 - [x] Atualizar a orientação do seletor de arquivo de modelo para corpo, cabeçalho e rodapé.
+- [x] Validar no navegador autenticado o detalhe de processo emitido, incluindo o preview e os links PDF/DOCX.
+- [x] Registrar evidência textual da tela de emissão validada.
+- [ ] Abrir a pré-visualização autenticada do documento emitido e registrar a evidência do iframe junto aos links de exportação.
+- [ ] Exibir a pré-visualização do PDF diretamente no detalhe de cada versão emitida.
