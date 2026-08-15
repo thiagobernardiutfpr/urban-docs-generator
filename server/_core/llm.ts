@@ -272,6 +272,9 @@ const RETRY_MAX_RETRIES = 4;
 const RETRY_BASE_DELAY_MS = 500;
 const RETRY_MAX_DELAY_MS = 30_000;
 
+export const isRetryableLlmStatus = (status: number) =>
+  status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
+
 type FetchInit = NonNullable<Parameters<typeof fetch>[1]>;
 
 const sleep = (ms: number) =>
@@ -308,7 +311,7 @@ const fetchWithBackoff = async (
   for (let attempt = 0; attempt <= RETRY_MAX_RETRIES; attempt++) {
     try {
       const response = await fetch(url, init);
-      if (response.ok || attempt === RETRY_MAX_RETRIES) {
+      if (response.ok || !isRetryableLlmStatus(response.status) || attempt === RETRY_MAX_RETRIES) {
         return response;
       }
 
@@ -412,6 +415,9 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
 
   if (!response.ok) {
     const errorText = await response.text();
+    if (response.status === 412) {
+      throw new Error("O serviço de IA está temporariamente indisponível. Continue o processo com preenchimento manual ou tente novamente mais tarde.");
+    }
     throw new Error(
       `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
     );

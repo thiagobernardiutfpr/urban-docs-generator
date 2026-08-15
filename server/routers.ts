@@ -167,8 +167,8 @@ export const appRouter = router({
         const analysis = await analyzeUrbanInstruction(input);
         const audit = await db.createAiAudit({ userId: ctx.user.id, feature: "instruction_analysis", model: "gpt-5-mini", inputSnapshot: input, outputSnapshot: analysis });
         return { ...analysis, auditId: audit.id };
-      } catch (error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error instanceof Error ? `Assistente de IA indisponível: ${error.message}` : "Assistente de IA indisponível." });
+      } catch {
+        throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Assistente de IA temporariamente indisponível. O preenchimento manual e a emissão do documento continuam disponíveis." });
       }
     }),
     chat: protectedProcedure.input(z.object({ messages: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().min(1).max(2500) })).min(1).max(10) })).mutation(async ({ ctx, input }) => {
@@ -185,8 +185,8 @@ export const appRouter = router({
         if (typeof answer !== "string" || !answer.trim()) throw new Error("A IA não retornou uma resposta utilizável.");
         const audit = await db.createAiAudit({ userId: ctx.user.id, feature: "global_assistant", model: "gpt-5-mini", inputSnapshot: { messages: input.messages }, outputSnapshot: { answer } });
         return { answer, auditId: audit.id };
-      } catch (error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error instanceof Error ? `Assistente de IA indisponível: ${error.message}` : "Assistente de IA indisponível." });
+      } catch {
+        throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Assistente de IA temporariamente indisponível. O preenchimento manual e a emissão do documento continuam disponíveis." });
       }
     }),
     contextual: protectedProcedure.input(z.object({ scope: z.enum(["templates", "spatial_sources", "final_review"]), context: z.string().min(1).max(5000) })).mutation(async ({ ctx, input }) => {
@@ -203,8 +203,8 @@ export const appRouter = router({
         if (typeof answer !== "string" || !answer.trim()) throw new Error("A IA não retornou uma orientação utilizável.");
         const audit = await db.createAiAudit({ userId: ctx.user.id, feature: `contextual_${input.scope}`, model: "gpt-5-mini", inputSnapshot: input, outputSnapshot: { answer } });
         return { answer, auditId: audit.id };
-      } catch (error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error instanceof Error ? `Assistente de IA indisponível: ${error.message}` : "Assistente de IA indisponível." });
+      } catch {
+        throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Assistente de IA temporariamente indisponível. O preenchimento manual e a emissão do documento continuam disponíveis." });
       }
     }),
     audits: roleProcedure(["reviewer", "approver", "admin"]).query(() => db.listAiAudits()),

@@ -23,4 +23,14 @@ describe("assistente de IA urbanístico", () => {
     expect(result.answer).toContain("campos obrigatórios");
     expect(invokeLLM).toHaveBeenCalledWith(expect.objectContaining({ model: "gpt-5-mini" }));
   });
+
+  it("mantém o fluxo documental disponível quando o serviço de IA retorna indisponibilidade", async () => {
+    invokeLLM.mockRejectedValue(new Error("LLM invoke failed: 412 Precondition Failed"));
+    const ctx: TrpcContext = { user: { id: 1, openId: "admin", email: "admin@exemplo.gov.br", name: "Admin", loginMethod: "manus", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: {} as TrpcContext["req"], res: {} as TrpcContext["res"] };
+
+    await expect(appRouter.createCaller(ctx).ai.chat({ messages: [{ role: "user", content: "Ajude-me" }] })).rejects.toMatchObject({
+      code: "SERVICE_UNAVAILABLE",
+      message: "Assistente de IA temporariamente indisponível. O preenchimento manual e a emissão do documento continuam disponíveis.",
+    });
+  });
 });
