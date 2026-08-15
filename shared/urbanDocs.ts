@@ -75,6 +75,14 @@ export function requestWorkflowStep(status: RequestStatus): number {
   return 5;
 }
 
+export function requestWorkflowActionLabel(step: number, attachmentCount = 0): string {
+  if (step === 1) return "Registrar e continuar";
+  if (step === 2) return attachmentCount > 0 ? "Analisar anexos e continuar" : "Continuar sem anexos";
+  if (step === 3) return "Revisar e cruzar dados";
+  if (step === 4) return "Preparar emissão";
+  return "Gerar DOCX e PDF";
+}
+
 export function normalizeEnrollment(value: unknown): string {
   return String(value ?? "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
 }
