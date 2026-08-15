@@ -11,6 +11,7 @@ set -Eeuo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/thiagobernardiutfpr/urban-docs-generator.git}"
 BRANCH="${BRANCH:-main}"
+DEPLOY_SCRIPT_URL="${DEPLOY_SCRIPT_URL:-https://raw.githubusercontent.com/thiagobernardiutfpr/urban-docs-generator/${BRANCH}/deploy/oracle/provision-and-deploy.sh}"
 INSTANCE_NAME="${INSTANCE_NAME:-urban-docs-app-cloudshell}"
 NSG_NAME="${NSG_NAME:-urban-docs-app-nsg}"
 VM_SHAPE="${VM_SHAPE:-VM.Standard.A1.Flex}"
@@ -453,7 +454,7 @@ run_remote_deploy() {
   local -a opts
   mapfile -t opts < <(ssh_opts)
   log "Executando o deploy remoto"
-  curl -fsSL "$REPO_URL/raw/$BRANCH/deploy/oracle/provision-and-deploy.sh" | \
+  curl -fsSL "$DEPLOY_SCRIPT_URL" | \
     ssh "${opts[@]}" -tt "$SSH_USER@$PUBLIC_IP" 'sudo bash -s'
 }
 
