@@ -93,7 +93,7 @@ read_configuration() {
   fi
 
   if [[ -z "$database_url" ]]; then
-    database_url="$(read_tty 'DATABASE_URL (mysql://urban_docs_app:SENHA@10.0.1.190:3306/urban_docs): ')"
+    database_url="$(read_tty 'DATABASE_URL (mysql://opc:SENHA@10.0.1.62:3306/urban_docs): ')"
   fi
   [[ -n "$database_url" ]] || fail "DATABASE_URL não pode ficar vazio."
 

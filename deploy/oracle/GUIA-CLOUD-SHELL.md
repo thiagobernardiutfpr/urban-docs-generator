@@ -16,7 +16,7 @@ A publicação terá esta estrutura:
 | Armazenamento de objetos | S3-compatible ou serviço configurado | Guardar uploads, DOCX, PDFs e arquivos assinados |
 | Navegador | Internet | Acessar `http://IP_PUBLICO_DA_VM:3000/` durante o primeiro teste |
 
-O banco usa o endereço privado `10.0.1.190`. A VM precisa estar na mesma VCN para conseguir acessá-lo. A porta `3306` não deve ser aberta para a internet.
+O banco usa o endereço privado `10.0.1.62`. A VM precisa estar na mesma VCN para conseguir acessá-lo. A porta `3306` não deve ser aberta para a internet.
 
 ## 2. Pré-requisitos
 
@@ -77,7 +77,7 @@ Abra:
 MySQL HeatWave → DB Systems → seu DB System
 ```
 
-Copie o campo **OCID**. Não confunda o OCID do DB System com o IP `10.0.1.190`.
+Copie o campo **OCID**. Não confunda o OCID do DB System com o IP `10.0.1.62`.
 
 ## 4. Preparar o Cloud Shell
 
@@ -183,21 +183,29 @@ export APP_SOURCE_CIDR="0.0.0.0/0"
 
 ## 8. Escolher o nome da VM
 
-Para criar uma VM nova e evitar reutilizar a VM antiga com problemas de SSH:
+Para criar uma VM nova somente quando você não tiver uma VM existente, não defina `TARGET_PUBLIC_IP`. No cenário atual, a VM existente deve ser reutilizada pelo IP público `137.131.140.39`:
 
 ```bash
-export INSTANCE_NAME="urban-docs-app-cloudshell-2"
+export TARGET_PUBLIC_IP="137.131.140.39"
 ```
 
 Se você deseja reutilizar a VM criada anteriormente pelo script, mantenha:
 
 ```bash
-export INSTANCE_NAME="urban-docs-app-cloudshell"
+export TARGET_PUBLIC_IP="137.131.140.39"
 ```
 
-O script reutiliza a VM quando encontra uma instância com o mesmo nome no compartment informado. Não use o mesmo nome de uma VM antiga que você pretende abandonar.
+Quando `TARGET_PUBLIC_IP` é informado, o script reutiliza a VM localizada pelo IP. Sem essa variável, ele reutiliza uma instância encontrada pelo `INSTANCE_NAME`; não use o mesmo nome de uma VM antiga que você pretende abandonar.
 
 ## 9. Executar o provisionamento
+
+Como a VM já possui o IP público `137.131.140.39`, informe esse endereço para que o script a localize e reutilize. Isso evita que uma segunda VM seja criada:
+
+```bash
+export TARGET_PUBLIC_IP="137.131.140.39"
+```
+
+O script também configurará o Network Security Group na VNIC encontrada. Se o endereço não for encontrado na VCN do banco, o processo será interrompido em vez de criar uma VM duplicada.
 
 Execute:
 
@@ -241,7 +249,7 @@ somente se tudo estiver correto.
 Depois que a VM for criada e acessível, o script solicitará `DATABASE_URL`. Informe:
 
 ```text
-mysql://urban_docs_app:SUA_SENHA@10.0.1.190:3306/urban_docs
+mysql://opc:SUA_SENHA@10.0.1.62:3306/urban_docs
 ```
 
 Substitua `SUA_SENHA` pela senha real. Ela não aparecerá enquanto você digita.
@@ -281,7 +289,7 @@ URL inicial: http://IP_PUBLICO_DA_VM:3000/
 Copie a URL completa e abra no navegador. Por exemplo:
 
 ```text
-http://147.15.101.236:3000/
+http://137.131.140.39:3000/
 ```
 
 O endereço pode ser acessado por qualquer usuário se `APP_SOURCE_CIDR` estiver em `0.0.0.0/0` e as regras de segurança estiverem corretas.
@@ -317,7 +325,7 @@ Se Docker for usado em vez de Podman, troque `podman` por `docker`.
 Teste a porta do banco a partir da VM:
 
 ```bash
-nc -vz 10.0.1.190 3306
+nc -vz 10.0.1.62 3306
 ```
 
 O teste deve indicar que a porta está aberta. Se falhar, ajuste a regra de entrada TCP 3306 no Security List ou Network Security Group do DB System, permitindo o CIDR da subnet da VM.
@@ -348,10 +356,10 @@ gh api -H 'Accept: application/vnd.github.raw' \
 chmod 700 cloud-shell-deploy.sh
 ```
 
-Use o mesmo nome da VM:
+Use novamente o IP público da VM:
 
 ```bash
-export INSTANCE_NAME="urban-docs-app-cloudshell-2"
+export TARGET_PUBLIC_IP="137.131.140.39"
 ./cloud-shell-deploy.sh
 ```
 

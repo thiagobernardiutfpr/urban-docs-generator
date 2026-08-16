@@ -35,8 +35,10 @@ AUTO_APPROVE="${AUTO_APPROVE:-NO}"
 FORCE_CONFIG="${FORCE_CONFIG:-NO}"
 
 TMP_DIR="$(mktemp -d)"
-INSTANCE_ID=""
-PUBLIC_IP=""
+INSTANCE_ID="${INSTANCE_ID:-}"
+TARGET_PUBLIC_IP="${TARGET_PUBLIC_IP:-${PUBLIC_IP:-}}"
+PUBLIC_IP="${PUBLIC_IP:-}"
+VNIC_ID=""
 NSG_ID=""
 DB_SUBNET_ID=""
 DB_SUBNET_CIDR=""
@@ -157,6 +159,27 @@ load_network_from_db() {
 
   log "VCN do banco: $VCN_ID"
   log "Subnet do banco: $DB_SUBNET_ID ($DB_SUBNET_CIDR)"
+}
+
+discover_existing_instance() {
+  [[ -n "$TARGET_PUBLIC_IP" ]] || return
+
+  log "Procurando a VM existente pelo IP público $TARGET_PUBLIC_IP"
+  local vnics attachments
+  vnics="$(oci network vnic list --compartment-id "$COMPARTMENT_ID" --vcn-id "$VCN_ID" --all --output json)"
+  VNIC_ID="$(jq -r --arg ip "$TARGET_PUBLIC_IP" '.data[]? | select(."public-ip" == $ip) | .id' <<<"$vnics" | head -n 1)"
+  [[ -n "$VNIC_ID" ]] || fail "Não encontrei uma VNIC com o IP público $TARGET_PUBLIC_IP na VCN do MySQL. Verifique o IP ou informe INSTANCE_ID."
+
+  APP_SUBNET_ID="$(jq -r --arg id "$VNIC_ID" '.data[]? | select(.id == $id) | ."subnet-id"' <<<"$vnics" | head -n 1)"
+  [[ -n "$APP_SUBNET_ID" ]] || fail "Não foi possível descobrir a subnet da VM existente."
+
+  attachments="$(oci compute vnic-attachment list --compartment-id "$COMPARTMENT_ID" --all --output json)"
+  INSTANCE_ID="$(jq -r --arg vnic "$VNIC_ID" '.data[]? | select(."vnic-id" == $vnic) | ."instance-id"' <<<"$attachments" | head -n 1)"
+  [[ -n "$INSTANCE_ID" ]] || fail "Não foi possível descobrir o OCID da VM associada ao IP $TARGET_PUBLIC_IP."
+
+  PUBLIC_IP="$TARGET_PUBLIC_IP"
+  log "VM existente encontrada: $INSTANCE_ID"
+  log "Subnet da VM existente: $APP_SUBNET_ID"
 }
 
 select_public_subnet() {
@@ -351,6 +374,12 @@ EOF
 
 create_or_reuse_instance() {
   local instances source_details shape_config nsg_ids user_data_file
+
+  if [[ -n "$INSTANCE_ID" ]]; then
+    log "Reutilizando VM existente $INSTANCE_ID"
+    return
+  fi
+
   instances="$(oci compute instance list --compartment-id "$COMPARTMENT_ID" --all --output json)"
   INSTANCE_ID="$(jq -r --arg name "$INSTANCE_NAME" '.data[]? | select(.["display-name"] == $name) | .id' <<<"$instances" | head -n 1)"
 
@@ -358,6 +387,8 @@ create_or_reuse_instance() {
     log "Reutilizando VM existente $INSTANCE_ID"
     return
   fi
+
+  [[ -z "$TARGET_PUBLIC_IP" ]] || fail "A VM com o IP público $TARGET_PUBLIC_IP não foi localizada. O script não criará uma VM duplicada."
 
   shape_config="$(jq -nc --argjson ocpus "$OCPUS" --argjson memory "$MEMORY_GB" '{ocpus:$ocpus,memoryInGBs:$memory}')"
   nsg_ids="$(jq -nc --arg id "$NSG_ID" '[$id]')"
@@ -396,12 +427,27 @@ EOF
 }
 
 get_public_ip() {
-  local attachment_id vnic_id
-  attachment_id="$(oci compute vnic-attachment list --compartment-id "$COMPARTMENT_ID" --instance-id "$INSTANCE_ID" --all --query 'data[0].id' --raw-output)"
-  vnic_id="$(oci compute vnic-attachment get --vnic-attachment-id "$attachment_id" --query 'data."vnic-id"' --raw-output)"
-  PUBLIC_IP="$(oci network vnic get --vnic-id "$vnic_id" --query 'data."public-ip"' --raw-output)"
+  local attachment_id
+  if [[ -z "$VNIC_ID" ]]; then
+    attachment_id="$(oci compute vnic-attachment list --compartment-id "$COMPARTMENT_ID" --instance-id "$INSTANCE_ID" --all --query 'data[0].id' --raw-output)"
+    VNIC_ID="$(oci compute vnic-attachment get --vnic-attachment-id "$attachment_id" --query 'data."vnic-id"' --raw-output)"
+  fi
+  PUBLIC_IP="$(oci network vnic get --vnic-id "$VNIC_ID" --query 'data."public-ip"' --raw-output)"
   [[ -n "$PUBLIC_IP" && "$PUBLIC_IP" != "null" ]] || fail "A VM não recebeu Public IP."
   log "Public IP da VM: $PUBLIC_IP"
+}
+
+ensure_nsg_on_vnic() {
+  local vnic_json attached_nsgs merged_nsgs
+  vnic_json="$(oci network vnic get --vnic-id "$VNIC_ID" --output json)"
+  attached_nsgs="$(jq -r '.data["nsg-ids"][]? // empty' <<<"$vnic_json")"
+  if grep -Fxq "$NSG_ID" <<<"$attached_nsgs"; then
+    return
+  fi
+
+  merged_nsgs="$(jq -c --arg nsg "$NSG_ID" '.data["nsg-ids"] // [] | . + [$nsg] | unique' <<<"$vnic_json")"
+  oci network vnic update --vnic-id "$VNIC_ID" --nsg-ids "$merged_nsgs" >/dev/null
+  log "NSG da aplicação associado à VNIC da VM"
 }
 
 wait_for_ssh() {
@@ -429,8 +475,9 @@ prepare_secret_file() {
   forge_key="${BUILT_IN_FORGE_API_KEY:-}"
   jwt_secret="${JWT_SECRET:-$(openssl rand -hex 32)}"
 
-  [[ -n "$database_url" ]] || database_url="$(read_secret_tty 'DATABASE_URL (mysql://urban_docs_app:SENHA@10.0.1.190:3306/urban_docs): ')"
+  [[ -n "$database_url" ]] || database_url="$(read_secret_tty 'DATABASE_URL (mysql://opc:SENHA@10.0.1.62:3306/urban_docs): ')"
   [[ "$database_url" == mysql://* ]] || fail "DATABASE_URL deve começar com mysql://"
+  [[ "$database_url" == *"@10.0.1.62:3306/urban_docs" ]] || log "AVISO: confirme que a DATABASE_URL aponta para 10.0.1.62:3306/urban_docs."
   [[ "$database_url" != *$'\n'* ]] || fail "DATABASE_URL não pode conter quebra de linha."
 
   if [[ -z "$forge_url" ]]; then
@@ -521,6 +568,7 @@ main() {
   download_github_assets
   ensure_ssh_key
   load_network_from_db
+  discover_existing_instance
   select_public_subnet
   verify_public_route
   create_or_reuse_nsg
@@ -531,6 +579,7 @@ main() {
   confirm_plan
   create_or_reuse_instance
   get_public_ip
+  ensure_nsg_on_vnic
   wait_for_ssh
   wait_for_cloud_init
   upload_source_if_available

@@ -85,6 +85,8 @@ Para produção, recomenda-se colocar Nginx ou Caddy na frente do container, abr
 
 ## Provisionamento completo pelo Oracle Cloud Shell
 
+No cenário atual, a VM existente tem o IP público `137.131.140.39` e o MySQL HeatWave tem o IP privado `10.0.1.62`. O endereço público é usado para SSH e HTTP; somente o endereço privado deve aparecer na `DATABASE_URL`.
+
 O arquivo `cloud-shell-deploy.sh` automatiza a criação da VM e o deploy sem exigir que você copie comandos manualmente entre o PowerShell e a VM. Ele deve ser executado no **Oracle Cloud Shell**, não no PowerShell local e não dentro de uma sessão SSH da VM.
 
 O script consulta o MySQL DB System pelo OCID, descobre a VCN e a subnet do banco, reutiliza uma subnet pública da mesma VCN, verifica a rota para Internet Gateway, cria ou reutiliza um Network Security Group dedicado, abre TCP 22 e TCP 3000 para a VM e autoriza TCP 3306 no banco somente a partir do CIDR da subnet da aplicação. Regras existentes da Security List do banco são preservadas.
@@ -122,7 +124,7 @@ O script solicitará os OCIDs e exibirá um plano antes de criar recursos. Digit
 No final, ele solicita `DATABASE_URL` de forma silenciosa. Para o banco atualmente informado, a URL terá estrutura semelhante a:
 
 ```text
-mysql://urban_docs_app:SENHA@10.0.1.190:3306/urban_docs
+mysql://opc:SENHA@10.0.1.62:3306/urban_docs
 ```
 
 Não coloque a senha no comando de execução, no histórico do Cloud Shell, no GitHub ou em mensagens. O script envia o arquivo de ambiente por SCP e o instala na VM como `/etc/urban-docs/urban-docs.env` com permissão `600`.
@@ -135,6 +137,7 @@ Para evitar prompts repetidos, os parâmetros podem ser fornecidos como variáve
 export COMPARTMENT_ID="ocid1.compartment.oc1..EXEMPLO"
 export TENANCY_ID="ocid1.tenancy.oc1..EXEMPLO"
 export DB_SYSTEM_ID="ocid1.mysqldbsystem.oc1..EXEMPLO"
+export TARGET_PUBLIC_IP="137.131.140.39"
 export INSTANCE_NAME="urban-docs-app"
 export VM_SHAPE="VM.Standard.A1.Flex"
 export OCPUS=1
@@ -154,7 +157,7 @@ A primeira execução cria uma chave em `~/.ssh/urban_docs_cloudshell` no Cloud 
 
 ### Reexecução e preservação
 
-Executar novamente com o mesmo `INSTANCE_NAME` reutiliza a VM e o NSG existentes. A configuração de ambiente existente na VM é preservada por padrão. Para substituir explicitamente a configuração, use:
+Para a VM já existente, use `TARGET_PUBLIC_IP="137.131.140.39"`; o script localizará a VNIC pelo IP e reutilizará a VM, evitando a criação de uma instância duplicada. Sem `TARGET_PUBLIC_IP`, a reutilização por `INSTANCE_NAME` continua disponível para VMs criadas pelo próprio script. A configuração de ambiente existente na VM é preservada por padrão. Para substituir explicitamente a configuração, use:
 
 ```bash
 FORCE_CONFIG=YES ./cloud-shell-deploy.sh
