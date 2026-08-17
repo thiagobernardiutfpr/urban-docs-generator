@@ -2,6 +2,8 @@
 // Uploads via Forge Server presigned URL to S3 (PUT direct).
 // Downloads return /manus-storage/{key} paths served via 307 redirect.
 
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { ENV } from "./_core/env";
 
 function getForgeConfig() {
@@ -21,6 +23,29 @@ function normalizeKey(relKey: string): string {
   return relKey.replace(/^\/+/, "");
 }
 
+const LOCAL_KEY_PREFIX = "local:";
+
+function localStorageRoot() {
+  return process.env.LOCAL_STORAGE_DIR?.trim() || "";
+}
+
+export function resolveLocalStoragePath(relKey: string) {
+  const root = localStorageRoot();
+  if (!root) throw new Error("Armazenamento local não configurado: defina LOCAL_STORAGE_DIR.");
+  const resolvedRoot = path.resolve(root);
+  const relative = normalizeKey(relKey).replace(/^local:/, "");
+  const resolvedFile = path.resolve(resolvedRoot, relative);
+  if (resolvedFile !== resolvedRoot && !resolvedFile.startsWith(`${resolvedRoot}${path.sep}`)) {
+    throw new Error("Caminho de armazenamento local inválido.");
+  }
+  return resolvedFile;
+}
+
+export async function readLocalStorageBytes(storageKey: string) {
+  if (!storageKey.startsWith(LOCAL_KEY_PREFIX)) return undefined;
+  return new Uint8Array(await readFile(resolveLocalStoragePath(storageKey)));
+}
+
 function appendHashSuffix(relKey: string): string {
   const hash = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
   const lastDot = relKey.lastIndexOf(".");
@@ -33,6 +58,15 @@ export async function storagePut(
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream",
 ): Promise<{ key: string; url: string }> {
+  const localRoot = localStorageRoot();
+  if (localRoot) {
+    const key = appendHashSuffix(normalizeKey(relKey));
+    const filePath = resolveLocalStoragePath(key);
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, data);
+    return { key: `${LOCAL_KEY_PREFIX}${key}`, url: `/local-storage/${key}` };
+  }
+
   const { forgeUrl, forgeKey } = getForgeConfig();
   const key = appendHashSuffix(normalizeKey(relKey));
 
@@ -73,10 +107,12 @@ export async function storagePut(
 
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
   const key = normalizeKey(relKey);
+  if (key.startsWith(LOCAL_KEY_PREFIX)) return { key, url: `/local-storage/${key.slice(LOCAL_KEY_PREFIX.length)}` };
   return { key, url: `/manus-storage/${key}` };
 }
 
 export async function storageGetSignedUrl(relKey: string): Promise<string> {
+  if (relKey.startsWith(LOCAL_KEY_PREFIX)) return `/local-storage/${relKey.slice(LOCAL_KEY_PREFIX.length)}`;
   const { forgeUrl, forgeKey } = getForgeConfig();
   const key = normalizeKey(relKey);
 

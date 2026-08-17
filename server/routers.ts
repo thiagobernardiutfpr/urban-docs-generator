@@ -1,5 +1,6 @@
 import { COOKIE_NAME } from "@shared/const";
 import { documentTypes, getExtension, isImageFile, isSpatialFile, isSupportedUpload, maxUploadBytes, userRoles } from "@shared/urbanDocs";
+import path from "node:path";
 import { getDemonstrationRequest } from "@shared/documentDemoData";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -8,6 +9,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, protectedProcedure, publicProcedure, roleProcedure, router } from "./_core/trpc";
 import { storagePut } from "./storage";
+import { ENV } from "./_core/env";
 import { analyzeUploadedFile, analyzeUrbanInstruction } from "./urbanAI";
 import { downloadStorageBytes, extractGeoPackageLot, extractSpreadsheetLot, inspectDocxTemplate, renderDocument, signPdfWithSystemStamp } from "./urbanDocs";
 import { documentSchemas } from "../shared/documentFields";
@@ -29,6 +31,23 @@ async function storeFile(input: { userId: number; requestId?: number; category: 
   const keyPrefix = input.requestId ? `urban-docs/${input.userId}/requests/${input.requestId}` : `urban-docs/${input.userId}/library`;
   const { key, url } = await storagePut(`${keyPrefix}/${input.filename}`, input.content, input.mimeType);
   return db.createFileRecord({ userId: input.userId, requestId: input.requestId, category: input.category, filename: input.filename, mimeType: input.mimeType, byteSize: input.content.byteLength, storageKey: key, storageUrl: url });
+}
+
+function getLocalSpatialSource(userId: number) {
+  const localPath = ENV.localSpatialSourcePath.trim();
+  if (!localPath) return undefined;
+  return {
+    id: 0,
+    userId,
+    name: ENV.localSpatialSourceName,
+    kind: "geopackage" as const,
+    fileId: 0,
+    metadata: { filename: path.basename(localPath), localPath, local: true },
+    isLocal: true as const,
+    isActive: 1,
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+  };
 }
 
 export const appRouter = router({
@@ -118,7 +137,11 @@ export const appRouter = router({
     }),
   }),
   spatial: router({
-    list: protectedProcedure.query(({ ctx }) => db.listAllSpatialSources(ctx.user.id)),
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const localSource = getLocalSpatialSource(ctx.user.id);
+      const sources = await db.listAllSpatialSources(ctx.user.id);
+      return localSource ? [localSource, ...sources] : sources;
+    }),
     setActive: protectedProcedure.input(z.object({ id: z.number().int().positive(), isActive: z.boolean() })).mutation(({ ctx, input }) => db.setSpatialSourceActive(ctx.user.id, input.id, input.isActive)),
     upload: protectedProcedure.input(z.object({ name: z.string().min(3).max(255), payload: filePayload })).mutation(async ({ ctx, input }) => {
       if (!isSpatialFile(input.payload.filename)) throw new TRPCError({ code: "BAD_REQUEST", message: "Envie uma planilha XLS, XLSX, CSV ou um arquivo GeoPackage." });
@@ -130,16 +153,19 @@ export const appRouter = router({
     crossReference: protectedProcedure.input(z.object({ requestId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       const request = await db.getRequestById(ctx.user.id, input.requestId);
       if (!request) throw new TRPCError({ code: "NOT_FOUND", message: "Solicitação não encontrada." });
-      const sources = await db.listSpatialSources(ctx.user.id);
+      const localSource = getLocalSpatialSource(ctx.user.id);
+      const sources = localSource ? [localSource, ...(await db.listSpatialSources(ctx.user.id))] : await db.listSpatialSources(ctx.user.id);
       const extracted: Record<string, unknown> = {};
       const matchedSources: string[] = [];
       const sourceFailures: Array<{ source: string; message: string }> = [];
       if (request.enrollment) {
         for (const source of sources) {
-          const file = await db.getFileById(ctx.user.id, source.fileId);
-          if (!file) continue;
+          const localPath = source.id === 0 && source.metadata && typeof source.metadata === "object" && "localPath" in source.metadata ? String((source.metadata as { localPath?: unknown }).localPath ?? "") : "";
+          const file = source.id === 0 ? undefined : await db.getFileById(ctx.user.id, source.fileId);
+          const storageKey = localPath ? `local-file:${localPath}` : file?.storageKey;
+          if (!storageKey) continue;
           try {
-            const result = source.kind === "geopackage" ? await extractGeoPackageLot(file.storageKey, request.enrollment) : await extractSpreadsheetLot(file.storageKey, request.enrollment);
+            const result = source.kind === "geopackage" ? await extractGeoPackageLot(storageKey, request.enrollment) : await extractSpreadsheetLot(storageKey, request.enrollment);
             if (result) {
               Object.assign(extracted, result);
               matchedSources.push(source.name);

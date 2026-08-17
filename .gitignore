@@ -104,6 +104,8 @@ temp/
 
 # Local development database
 /docker-compose.local.yml
+/data/storage/
+/data/spatial/
 
 # Database
 *.db

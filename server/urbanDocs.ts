@@ -15,7 +15,7 @@ import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
 import { documentTypeLabels, getExtension, normalizeEnrollment, normalizeFieldName } from "../shared/urbanDocs";
 import { documentSchemas, getSchemaSections } from "../shared/documentFields";
-import { storageGetSignedUrl } from "./storage";
+import { readLocalStorageBytes, storageGetSignedUrl } from "./storage";
 
 export type ExtractedLotData = Record<string, unknown> & {
   sourceNames?: string;
@@ -265,6 +265,11 @@ function geometryFromGpkg(value: unknown, srid: number) {
 }
 
 export async function downloadStorageBytes(fileKey: string) {
+  if (fileKey.startsWith("local-file:")) {
+    return new Uint8Array(await readFile(fileKey.slice("local-file:".length)));
+  }
+  const localBytes = await readLocalStorageBytes(fileKey);
+  if (localBytes) return localBytes;
   const signedUrl = await storageGetSignedUrl(fileKey);
   const response = await fetch(signedUrl);
   if (!response.ok) throw new Error("Não foi possível recuperar o arquivo do armazenamento.");

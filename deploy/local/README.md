@@ -62,6 +62,27 @@ Não execute `docker compose down -v` se quiser preservar o banco, pois o parâm
 
 O arquivo `.env` e os backups temporários `.env.backup-*` não devem ser commitados. O `.gitignore` do projeto já protege esses arquivos.
 
+## GeoPackage territorial local
+
+O aplicativo pode consultar um GeoPackage diretamente no disco local, sem fazer upload do arquivo para o armazenamento remoto. Isso é recomendado para bases grandes, pois o fluxo de upload do navegador possui limite de 25 MB.
+
+Crie a pasta de dados e copie o arquivo recebido para ela:
+
+```powershell
+New-Item -ItemType Directory -Force .\data\spatial | Out-Null
+Copy-Item "C:\caminho\GEOPACKAGE_22-10-25.gpkg" .\data\spatial\GEOPACKAGE_22-10-25.gpkg
+```
+
+Depois, execute o instalador informando o caminho do arquivo e `-ForceEnv` para gravar as variáveis locais:
+
+```powershell
+.\deploy\local\setup-local-windows.ps1 `
+  -SpatialSourcePath "$((Get-Location).Path)\data\spatial\GEOPACKAGE_22-10-25.gpkg" `
+  -ForceEnv
+```
+
+O app exibirá a base como **GeoPackage territorial local**. Na etapa de revisão, a fonte será consultada automaticamente pela inscrição imobiliária. A fonte local é somente leitura no catálogo; sua ativação e seu conteúdo não são alterados pelo aplicativo.
+
 ## Diagnóstico
 
 Verifique o container e os logs com:
@@ -72,3 +93,9 @@ docker ps
 ```
 
 Se a porta `3306` já estiver ocupada, pare o serviço que a utiliza ou altere o mapeamento no arquivo `docker-compose.local.yml` e a porta correspondente na `DATABASE_URL`.
+
+Se o GeoPackage não for localizado, confirme a variável no `.env`:
+
+```text
+LOCAL_SPATIAL_SOURCE_PATH=C:/caminho/para/GEOPACKAGE_22-10-25.gpkg
+```

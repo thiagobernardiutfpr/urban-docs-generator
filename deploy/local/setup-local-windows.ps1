@@ -5,7 +5,8 @@ param(
   [string]$AppPassword = "",
   [switch]$UseExistingMySql,
   [switch]$ForceEnv,
-  [switch]$StartApp
+  [switch]$StartApp,
+  [string]$SpatialSourcePath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -131,6 +132,18 @@ if (-not (Test-Path (Join-Path $ProjectRoot "package.json"))) {
   throw "package.json não foi encontrado. Execute o script na cópia do Urban Docs."
 }
 
+$localStorageDir = Join-Path $ProjectRoot "data\storage"
+$defaultSpatialPath = Join-Path $ProjectRoot "data\spatial\GEOPACKAGE_22-10-25.gpkg"
+if (-not $SpatialSourcePath -and (Test-Path $defaultSpatialPath)) { $SpatialSourcePath = $defaultSpatialPath }
+if ($SpatialSourcePath) {
+  $SpatialSourcePath = (Resolve-Path $SpatialSourcePath).Path
+  if (-not $SpatialSourcePath.ToLowerInvariant().EndsWith(".gpkg")) { throw "SpatialSourcePath deve apontar para um arquivo .gpkg." }
+  Write-Host "GeoPackage local configurado: $SpatialSourcePath" -ForegroundColor Green
+} else {
+  Write-Host "Nenhum GeoPackage local foi encontrado. O app funcionará sem a base territorial até LOCAL_SPATIAL_SOURCE_PATH ser configurado." -ForegroundColor Yellow
+}
+New-Item -ItemType Directory -Force $localStorageDir | Out-Null
+
 if (-not $DbPassword) {
   $DbPassword = Read-Secret "Senha atual ou nova do usuário root do MySQL local (não será exibida)"
 }
@@ -222,6 +235,9 @@ $jwtSecret = -join ($jwtBytes | ForEach-Object { $_.ToString("x2") })
 $envFile = Join-Path $ProjectRoot ".env"
 
 Write-Step "Configurando o ambiente local"
+$localStorageDirForEnv = ($localStorageDir -replace "\\", "/")
+$spatialSourcePathForEnv = if ($SpatialSourcePath) { ($SpatialSourcePath -replace "\\", "/") } else { "" }
+
 if ((Test-Path $envFile) -and -not $ForceEnv) {
   $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
   Copy-Item $envFile "$envFile.backup-$stamp"
@@ -233,6 +249,9 @@ NODE_ENV=development
 PORT=3000
 DATABASE_URL=$databaseUrl
 JWT_SECRET=$jwtSecret
+LOCAL_STORAGE_DIR=$localStorageDirForEnv
+LOCAL_SPATIAL_SOURCE_PATH=$spatialSourcePathForEnv
+LOCAL_SPATIAL_SOURCE_NAME=GeoPackage territorial local
 "@ | Set-Content -Path $envFile -Encoding UTF8
   Write-Host "Arquivo .env local configurado. Ele é ignorado pelo Git."
 } else {
