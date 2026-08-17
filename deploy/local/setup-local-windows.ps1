@@ -6,7 +6,10 @@ param(
   [switch]$UseExistingMySql,
   [switch]$ForceEnv,
   [switch]$StartApp,
-  [string]$SpatialSourcePath = ""
+  [string]$SpatialSourcePath = "",
+  [string]$TerritorialCadastroPath = "",
+  [string]$TerritorialNumeracaoPath = "",
+  [string]$TerritorialZoneamentoPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -133,14 +136,35 @@ if (-not (Test-Path (Join-Path $ProjectRoot "package.json"))) {
 }
 
 $localStorageDir = Join-Path $ProjectRoot "data\storage"
-$defaultSpatialPath = Join-Path $ProjectRoot "data\spatial\GEOPACKAGE_22-10-25.gpkg"
+$spatialDir = Join-Path $ProjectRoot "data\spatial"
+$defaultSpatialPath = Join-Path $spatialDir "GEOPACKAGE_22-10-25.gpkg"
+$defaultTerritorialCadastroPath = Join-Path $spatialDir "Lotes-cadastro.xlsx"
+$defaultTerritorialNumeracaoPath = Join-Path $spatialDir "Lotes-NumQgis.xlsx"
+$defaultTerritorialZoneamentoPath = Join-Path $spatialDir "LotesxZoneamento.xlsx"
 if (-not $SpatialSourcePath -and (Test-Path $defaultSpatialPath)) { $SpatialSourcePath = $defaultSpatialPath }
+if (-not $TerritorialCadastroPath -and (Test-Path $defaultTerritorialCadastroPath)) { $TerritorialCadastroPath = $defaultTerritorialCadastroPath }
+if (-not $TerritorialNumeracaoPath -and (Test-Path $defaultTerritorialNumeracaoPath)) { $TerritorialNumeracaoPath = $defaultTerritorialNumeracaoPath }
+if (-not $TerritorialZoneamentoPath -and (Test-Path $defaultTerritorialZoneamentoPath)) { $TerritorialZoneamentoPath = $defaultTerritorialZoneamentoPath }
 if ($SpatialSourcePath) {
   $SpatialSourcePath = (Resolve-Path $SpatialSourcePath).Path
   if (-not $SpatialSourcePath.ToLowerInvariant().EndsWith(".gpkg")) { throw "SpatialSourcePath deve apontar para um arquivo .gpkg." }
   Write-Host "GeoPackage local configurado: $SpatialSourcePath" -ForegroundColor Green
 } else {
   Write-Host "Nenhum GeoPackage local foi encontrado. O app funcionará sem a base territorial até LOCAL_SPATIAL_SOURCE_PATH ser configurado." -ForegroundColor Yellow
+}
+
+$territorialPaths = @(
+  @{ Name = "TerritorialCadastroPath"; Value = $TerritorialCadastroPath; Label = "Lotes-cadastro.xlsx" },
+  @{ Name = "TerritorialNumeracaoPath"; Value = $TerritorialNumeracaoPath; Label = "Lotes-NumQgis.xlsx" },
+  @{ Name = "TerritorialZoneamentoPath"; Value = $TerritorialZoneamentoPath; Label = "LotesxZoneamento.xlsx" }
+)
+foreach ($item in $territorialPaths) {
+  if ($item.Value) {
+    $resolved = (Resolve-Path $item.Value).Path
+    if (-not $resolved.ToLowerInvariant().EndsWith(".xlsx")) { throw "$($item.Name) deve apontar para um arquivo .xlsx." }
+    Set-Variable -Name $item.Name -Value $resolved
+    Write-Host "Tabela territorial configurada ($($item.Label)): $resolved" -ForegroundColor Green
+  }
 }
 New-Item -ItemType Directory -Force $localStorageDir | Out-Null
 
@@ -237,6 +261,9 @@ $envFile = Join-Path $ProjectRoot ".env"
 Write-Step "Configurando o ambiente local"
 $localStorageDirForEnv = ($localStorageDir -replace "\\", "/")
 $spatialSourcePathForEnv = if ($SpatialSourcePath) { ($SpatialSourcePath -replace "\\", "/") } else { "" }
+$territorialCadastroPathForEnv = if ($TerritorialCadastroPath) { ($TerritorialCadastroPath -replace "\\", "/") } else { "" }
+$territorialNumeracaoPathForEnv = if ($TerritorialNumeracaoPath) { ($TerritorialNumeracaoPath -replace "\\", "/") } else { "" }
+$territorialZoneamentoPathForEnv = if ($TerritorialZoneamentoPath) { ($TerritorialZoneamentoPath -replace "\\", "/") } else { "" }
 
 if ((Test-Path $envFile) -and -not $ForceEnv) {
   $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
@@ -252,6 +279,9 @@ JWT_SECRET=$jwtSecret
 LOCAL_STORAGE_DIR=$localStorageDirForEnv
 LOCAL_SPATIAL_SOURCE_PATH=$spatialSourcePathForEnv
 LOCAL_SPATIAL_SOURCE_NAME=GeoPackage territorial local
+LOCAL_TERRITORIAL_CADASTRO_PATH=$territorialCadastroPathForEnv
+LOCAL_TERRITORIAL_NUMERACAO_PATH=$territorialNumeracaoPathForEnv
+LOCAL_TERRITORIAL_ZONEAMENTO_PATH=$territorialZoneamentoPathForEnv
 "@ | Set-Content -Path $envFile -Encoding UTF8
   Write-Host "Arquivo .env local configurado. Ele é ignorado pelo Git."
 } else {

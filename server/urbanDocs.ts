@@ -16,6 +16,7 @@ import { pathToFileURL } from "node:url";
 import { documentTypeLabels, getExtension, normalizeEnrollment, normalizeFieldName } from "../shared/urbanDocs";
 import { documentSchemas, getSchemaSections } from "../shared/documentFields";
 import { readLocalStorageBytes, storageGetSignedUrl } from "./storage";
+import { ENV } from "./_core/env";
 
 export type ExtractedLotData = Record<string, unknown> & {
   sourceNames?: string;
@@ -305,6 +306,105 @@ export async function extractSpreadsheetLot(fileKey: string, enrollment: string)
     }
   }
   return undefined;
+}
+
+type TerritorialRecord = Record<string, unknown>;
+const territorialWorkbookCache = new Map<string, Promise<TerritorialRecord[]>>();
+
+function territorialEnrollment(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw || raw.toLowerCase() === "nan") return "";
+  const parts = raw.split(".");
+  const base = parts.length >= 4 && /^\d{1,3}$/.test(parts[parts.length - 1]) ? parts.slice(0, -1).join(".") : raw;
+  return normalizeEnrollment(base);
+}
+
+function fieldValue(record: TerritorialRecord, names: string[]) {
+  const wanted = new Set(names.map((name) => normalizeFieldName(name)));
+  const key = Object.keys(record).find((candidate) => wanted.has(normalizeFieldName(candidate)));
+  return key ? record[key] : undefined;
+}
+
+async function readTerritorialWorkbook(filePath: string) {
+  const cached = territorialWorkbookCache.get(filePath);
+  if (cached) return cached;
+  const pending = (async () => {
+    const bytes = await downloadStorageBytes(`local-file:${filePath}`);
+    const workbook = XLSX.read(bytes, { type: "array", cellDates: true });
+    return workbook.SheetNames.flatMap((sheetName) => {
+      const sheet = workbook.Sheets[sheetName];
+      return sheet ? XLSX.utils.sheet_to_json<TerritorialRecord>(sheet, { defval: null }) : [];
+    });
+  })();
+  territorialWorkbookCache.set(filePath, pending);
+  return pending;
+}
+
+function firstMatchingRecord(records: TerritorialRecord[], predicate: (record: TerritorialRecord) => boolean) {
+  return records.find(predicate);
+}
+
+export type LocalTerritorialTablePaths = {
+  cadastro?: string;
+  numeracao?: string;
+  zoneamento?: string;
+};
+
+export async function extractLocalTerritorialTables(enrollment: string, paths: LocalTerritorialTablePaths = {
+  cadastro: ENV.localTerritorialCadastroPath,
+  numeracao: ENV.localTerritorialNumeracaoPath,
+  zoneamento: ENV.localTerritorialZoneamentoPath,
+}): Promise<ExtractedLotData | undefined> {
+  const configured = [paths.cadastro, paths.numeracao, paths.zoneamento].filter(Boolean);
+  if (!configured.length) return undefined;
+  const target = territorialEnrollment(enrollment);
+  if (!target) return undefined;
+
+  const [cadastroRecords, numeracaoRecords, zoneamentoRecords] = await Promise.all([
+    paths.cadastro ? readTerritorialWorkbook(paths.cadastro) : Promise.resolve([]),
+    paths.numeracao ? readTerritorialWorkbook(paths.numeracao) : Promise.resolve([]),
+    paths.zoneamento ? readTerritorialWorkbook(paths.zoneamento) : Promise.resolve([]),
+  ]);
+  const cadastro = firstMatchingRecord(cadastroRecords, (record) => territorialEnrollment(fieldValue(record, ["inscrição", "inscricao"])) === target);
+  const cadastroNumber = cadastro ? normalizeEnrollment(fieldValue(cadastro, ["cadastro"])) : "";
+  const numeracao = cadastroNumber ? firstMatchingRecord(numeracaoRecords, (record) => normalizeEnrollment(fieldValue(record, ["cadastro"])) === cadastroNumber) : undefined;
+  const zoneamento = firstMatchingRecord(zoneamentoRecords, (record) => territorialEnrollment(fieldValue(record, ["inscricao", "inscrição"])) === target);
+  if (!cadastro && !numeracao && !zoneamento) return undefined;
+
+  const street = String(fieldValue(cadastro ?? {}, ["logradouro"]) ?? fieldValue(numeracao ?? {}, ["logradouro"]) ?? "").trim();
+  const number = fieldValue(cadastro ?? {}, ["numeração", "numeracao"]) ?? fieldValue(numeracao ?? {}, ["numeracaocorreta", "numeracaoinloco"]);
+  const neighborhood = fieldValue(cadastro ?? {}, ["bairro"]) ?? fieldValue(numeracao ?? {}, ["bairro"]);
+  const cep = fieldValue(cadastro ?? {}, ["Cep", "CEP", "cep"]) ?? fieldValue(numeracao ?? {}, ["cep"]);
+  const addressParts = [street, number !== undefined && number !== null && String(number) !== "" && String(number) !== "0" ? String(number) : "", neighborhood ? String(neighborhood) : ""].filter(Boolean);
+  const result: ExtractedLotData = {
+    inscricao_imobiliaria: enrollment,
+    cadastro_municipal: fieldValue(cadastro ?? {}, ["cadastro"]),
+    tipo_imovel: fieldValue(cadastro ?? {}, ["tipo"]),
+    proprietario: fieldValue(cadastro ?? {}, ["proprietário", "proprietario"]),
+    cpf_cnpj: fieldValue(cadastro ?? {}, ["cpf/cnpj", "cpf_cnpj"]),
+    endereco: addressParts.join(", "),
+    logradouro: street || undefined,
+    numero: number,
+    bairro: neighborhood,
+    quadra: fieldValue(cadastro ?? {}, ["Quadra", "quadra"]) ?? fieldValue(numeracao ?? {}, ["quadra"]),
+    lote: fieldValue(cadastro ?? {}, ["Lote", "lote"]) ?? fieldValue(numeracao ?? {}, ["lote"]),
+    cep,
+    zoneamento: fieldValue(zoneamento ?? {}, ["Zona", "zoneamento"]),
+    zona: fieldValue(zoneamento ?? {}, ["Zona", "zoneamento"]),
+    numeracao_correta: fieldValue(numeracao ?? {}, ["numeracaocorreta"]),
+    numeracao_in_loco: fieldValue(numeracao ?? {}, ["numeracaoinloco"]),
+    situacao_numeracao: fieldValue(numeracao ?? {}, ["situacao"]),
+    fontes_tabelas_territoriais: [
+      cadastro ? "Lotes-cadastro.xlsx" : undefined,
+      numeracao ? "Lotes-NumQgis.xlsx" : undefined,
+      zoneamento ? "LotesxZoneamento.xlsx" : undefined,
+    ].filter(Boolean),
+    dados_cadastro: cadastro ?? undefined,
+    dados_numeracao: numeracao ?? undefined,
+    dados_zoneamento: zoneamento ?? undefined,
+    sourceNames: "Tabelas territoriais locais",
+  };
+  return result;
 }
 
 export async function extractGeoPackageLot(fileKey: string, enrollment: string): Promise<ExtractedLotData | undefined> {

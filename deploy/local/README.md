@@ -73,15 +73,28 @@ New-Item -ItemType Directory -Force .\data\spatial | Out-Null
 Copy-Item "C:\caminho\GEOPACKAGE_22-10-25.gpkg" .\data\spatial\GEOPACKAGE_22-10-25.gpkg
 ```
 
-Depois, execute o instalador informando o caminho do arquivo e `-ForceEnv` para gravar as variáveis locais:
+As três planilhas complementares devem ficar na mesma pasta:
+
+```powershell
+Copy-Item "C:\caminho\Lotes-cadastro.xlsx" .\data\spatial\Lotes-cadastro.xlsx
+Copy-Item "C:\caminho\Lotes-NumQgis.xlsx" .\data\spatial\Lotes-NumQgis.xlsx
+Copy-Item "C:\caminho\LotesxZoneamento.xlsx" .\data\spatial\LotesxZoneamento.xlsx
+```
+
+Execute o instalador com `-ForceEnv` para gravar todas as variáveis locais. Quando os nomes padrão forem usados, os quatro arquivos são detectados automaticamente:
 
 ```powershell
 .\deploy\local\setup-local-windows.ps1 `
   -SpatialSourcePath "$((Get-Location).Path)\data\spatial\GEOPACKAGE_22-10-25.gpkg" `
+  -TerritorialCadastroPath "$((Get-Location).Path)\data\spatial\Lotes-cadastro.xlsx" `
+  -TerritorialNumeracaoPath "$((Get-Location).Path)\data\spatial\Lotes-NumQgis.xlsx" `
+  -TerritorialZoneamentoPath "$((Get-Location).Path)\data\spatial\LotesxZoneamento.xlsx" `
   -ForceEnv
 ```
 
-O app exibirá a base como **GeoPackage territorial local**. Na etapa de revisão, a fonte será consultada automaticamente pela inscrição imobiliária. A fonte local é somente leitura no catálogo; sua ativação e seu conteúdo não são alterados pelo aplicativo.
+O aplicativo consulta a inscrição imobiliária normalizada na tabela **Lotes-cadastro**, usa o campo `cadastro` para localizar a numeração em **Lotes-NumQgis** e cruza a mesma inscrição-base com **LotesxZoneamento**. Os dados consolidados entram na revisão e na geração do documento nos campos de endereço, proprietário, cadastro municipal, quadra, lote, CEP, numeração e zona/zoneamento.
+
+O app exibirá a base como **GeoPackage territorial local + tabelas complementares**. A fonte local é somente leitura no catálogo; seus arquivos e conteúdos não são alterados pelo aplicativo.
 
 ## Diagnóstico
 
@@ -94,8 +107,11 @@ docker ps
 
 Se a porta `3306` já estiver ocupada, pare o serviço que a utiliza ou altere o mapeamento no arquivo `docker-compose.local.yml` e a porta correspondente na `DATABASE_URL`.
 
-Se o GeoPackage não for localizado, confirme a variável no `.env`:
+Se alguma fonte territorial não for localizada, confirme estas variáveis no `.env`:
 
 ```text
 LOCAL_SPATIAL_SOURCE_PATH=C:/caminho/para/GEOPACKAGE_22-10-25.gpkg
+LOCAL_TERRITORIAL_CADASTRO_PATH=C:/caminho/para/Lotes-cadastro.xlsx
+LOCAL_TERRITORIAL_NUMERACAO_PATH=C:/caminho/para/Lotes-NumQgis.xlsx
+LOCAL_TERRITORIAL_ZONEAMENTO_PATH=C:/caminho/para/LotesxZoneamento.xlsx
 ```

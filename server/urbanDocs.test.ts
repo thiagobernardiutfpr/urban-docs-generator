@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { Document, Footer, Header, Packer, Paragraph } from "docx";
 import PizZip from "pizzip";
+import XLSX from "xlsx";
 import { attachmentContinuation, canApproveEmission, canReviewAi, canTransitionRequestStatus, documentTypes, getExtension, isSpatialFile, isSupportedUpload, normalizeEnrollment, normalizeFieldName, requestWorkflowActionLabel, requestWorkflowStep } from "../shared/urbanDocs";
 import { documentSchemas } from "../shared/documentFields";
 import { getDemonstrationRequest } from "../shared/documentDemoData";
 import { getPdfPreviewUrl } from "../shared/documentPreview";
-import { buildGeoPackageEnrollmentQuery, inspectDocxTemplate, projectPosition, renderDocument, signPdfWithSystemStamp } from "./urbanDocs";
+import { buildGeoPackageEnrollmentQuery, extractLocalTerritorialTables, inspectDocxTemplate, projectPosition, renderDocument, signPdfWithSystemStamp } from "./urbanDocs";
 
 const officialTemplatesPath = "/home/ubuntu/webdev-static-assets";
 const officialTemplateNames = [
@@ -198,6 +200,46 @@ describe("regras documentais urbanísticas", () => {
     expect(query).toContain('CAST("INSCRICAO" AS TEXT)');
     expect(query).toContain("LIMIT 1");
     expect(query).not.toContain('SELECT * FROM "LOTES AT JUN23";');
+  });
+
+  it("cruza cadastro, numeração QGIS e zoneamento pela inscrição-base", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "urban-territorial-"));
+    const writeWorkbook = async (filename: string, rows: Record<string, unknown>[]) => {
+      const sheet = XLSX.utils.json_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, sheet, "dados");
+      await writeFile(path.join(directory, filename), XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }));
+    };
+
+    try {
+      await writeWorkbook("Lotes-cadastro.xlsx", [{ "inscrição": "101.001.0060.001", cadastro: 5, tipo: "Terreno", proprietário: "ODETE JUNQUEIRA", "cpf/cnpj": "002.799.789-87", bairro: "BAIRRO JARDIM", logradouro: "DEMETRIO SANTOS MOREIRA", Quadra: "000", Lote: "015", numeração: 240, Cep: "86.800-730" }]);
+      await writeWorkbook("Lotes-NumQgis.xlsx", [{ cadastro: 5, numeracaocorreta: 240, situacao: "Numeração correta", quadra: "0", lote: "015", bairro: "BAIRRO JARDIM", logradouro: "DEMETRIO SANTOS MOREIRA", cep: "86800730" }]);
+      await writeWorkbook("LotesxZoneamento.xlsx", [{ inscricao: "101.001.0060", Zona: "ZC1" }]);
+
+      const extracted = await extractLocalTerritorialTables("101.001.0060.001", {
+        cadastro: path.join(directory, "Lotes-cadastro.xlsx"),
+        numeracao: path.join(directory, "Lotes-NumQgis.xlsx"),
+        zoneamento: path.join(directory, "LotesxZoneamento.xlsx"),
+      });
+
+      expect(extracted).toMatchObject({
+        cadastro_municipal: 5,
+        proprietario: "ODETE JUNQUEIRA",
+        endereco: "DEMETRIO SANTOS MOREIRA, 240, BAIRRO JARDIM",
+        quadra: "000",
+        lote: "015",
+        zoneamento: "ZC1",
+        numeracao_correta: 240,
+        situacao_numeracao: "Numeração correta",
+      });
+      expect(extracted?.fontes_tabelas_territoriais).toEqual([
+        "Lotes-cadastro.xlsx",
+        "Lotes-NumQgis.xlsx",
+        "LotesxZoneamento.xlsx",
+      ]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   officialAssetTest("processa os três modelos oficiais associados ao acervo", async () => {

@@ -11,7 +11,7 @@ import { adminProcedure, protectedProcedure, publicProcedure, roleProcedure, rou
 import { storagePut } from "./storage";
 import { ENV } from "./_core/env";
 import { analyzeUploadedFile, analyzeUrbanInstruction } from "./urbanAI";
-import { downloadStorageBytes, extractGeoPackageLot, extractSpreadsheetLot, inspectDocxTemplate, renderDocument, signPdfWithSystemStamp } from "./urbanDocs";
+import { downloadStorageBytes, extractGeoPackageLot, extractLocalTerritorialTables, extractSpreadsheetLot, inspectDocxTemplate, renderDocument, signPdfWithSystemStamp } from "./urbanDocs";
 import { documentSchemas } from "../shared/documentFields";
 
 const filePayload = z.object({
@@ -39,10 +39,19 @@ function getLocalSpatialSource(userId: number) {
   return {
     id: 0,
     userId,
-    name: ENV.localSpatialSourceName,
+    name: ENV.localTerritorialCadastroPath || ENV.localTerritorialNumeracaoPath || ENV.localTerritorialZoneamentoPath ? `${ENV.localSpatialSourceName} + tabelas complementares` : ENV.localSpatialSourceName,
     kind: "geopackage" as const,
     fileId: 0,
-    metadata: { filename: path.basename(localPath), localPath, local: true },
+    metadata: {
+      filename: path.basename(localPath),
+      localPath,
+      local: true,
+      territorialTables: {
+        cadastro: ENV.localTerritorialCadastroPath || undefined,
+        numeracao: ENV.localTerritorialNumeracaoPath || undefined,
+        zoneamento: ENV.localTerritorialZoneamentoPath || undefined,
+      },
+    },
     isLocal: true as const,
     isActive: 1,
     createdAt: new Date(0),
@@ -165,7 +174,9 @@ export const appRouter = router({
           const storageKey = localPath ? `local-file:${localPath}` : file?.storageKey;
           if (!storageKey) continue;
           try {
-            const result = source.kind === "geopackage" ? await extractGeoPackageLot(storageKey, request.enrollment) : await extractSpreadsheetLot(storageKey, request.enrollment);
+            const baseResult = source.kind === "geopackage" ? await extractGeoPackageLot(storageKey, request.enrollment) : await extractSpreadsheetLot(storageKey, request.enrollment);
+            const territorialTables = source.id === 0 ? await extractLocalTerritorialTables(request.enrollment) : undefined;
+            const result = baseResult || territorialTables ? { ...(baseResult ?? {}), ...(territorialTables ?? {}) } : undefined;
             if (result) {
               Object.assign(extracted, result);
               matchedSources.push(source.name);

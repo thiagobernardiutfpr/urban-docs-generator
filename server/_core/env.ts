@@ -10,4 +10,7 @@ export const ENV = {
   localStorageDir: process.env.LOCAL_STORAGE_DIR ?? "",
   localSpatialSourcePath: process.env.LOCAL_SPATIAL_SOURCE_PATH ?? "",
   localSpatialSourceName: process.env.LOCAL_SPATIAL_SOURCE_NAME ?? "GeoPackage territorial local",
+  localTerritorialCadastroPath: process.env.LOCAL_TERRITORIAL_CADASTRO_PATH ?? "",
+  localTerritorialNumeracaoPath: process.env.LOCAL_TERRITORIAL_NUMERACAO_PATH ?? "",
+  localTerritorialZoneamentoPath: process.env.LOCAL_TERRITORIAL_ZONEAMENTO_PATH ?? "",
 };
