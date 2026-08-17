@@ -55,14 +55,58 @@ function Invoke-Compose([string[]]$Arguments) {
 
 function Invoke-MySql([string]$Sql) {
   $oldPwd = $env:MYSQL_PWD
-  $env:MYSQL_PWD = $script:DbPassword
   try {
     if ($script:DbMode -eq "docker") {
-      & docker exec -e MYSQL_PWD=$script:DbPassword $script:ContainerName mysql -uroot -h127.0.0.1 -e $Sql
+      if ($script:RootPasswordMode -eq "password") {
+        & docker exec -e MYSQL_PWD=$script:DbPassword $script:ContainerName mysql -uroot -h127.0.0.1 -e $Sql
+      } else {
+        & docker exec $script:ContainerName mysql -uroot -h127.0.0.1 -e $Sql
+      }
     } else {
+      $env:MYSQL_PWD = $script:DbPassword
       & mysql -h 127.0.0.1 -P 3306 -uroot -e $Sql
     }
     if ($LASTEXITCODE -ne 0) { throw "O cliente MySQL recusou a operação." }
+  } finally {
+    if ($null -eq $oldPwd) { Remove-Item Env:MYSQL_PWD -ErrorAction SilentlyContinue }
+    else { $env:MYSQL_PWD = $oldPwd }
+  }
+}
+
+function Wait-ForMySqlContainer {
+  Write-Step "Aguardando o MySQL ficar pronto"
+  for ($i = 1; $i -le 60; $i++) {
+    $status = (& docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' $script:ContainerName 2>$null).Trim()
+    if ($status -eq "healthy" -or $status -eq "running") { return }
+    if ($status -eq "exited" -or $status -eq "dead") {
+      throw "O container MySQL terminou inesperadamente. Verifique: docker logs $script:ContainerName"
+    }
+    Start-Sleep -Seconds 2
+  }
+  throw "O MySQL não ficou pronto em 120 segundos. Verifique: docker logs $script:ContainerName"
+}
+
+function Configure-RootPassword {
+  Write-Step "Validando a senha root do MySQL local"
+  $oldPwd = $env:MYSQL_PWD
+  try {
+    & docker exec -e MYSQL_PWD=$script:DbPassword $script:ContainerName mysqladmin -uroot -h127.0.0.1 ping --silent *> $null
+    if ($LASTEXITCODE -eq 0) {
+      $script:RootPasswordMode = "password"
+      return
+    }
+
+    Remove-Item Env:MYSQL_PWD -ErrorAction SilentlyContinue
+    & docker exec $script:ContainerName mysqladmin -uroot -h127.0.0.1 ping --silent *> $null
+    if ($LASTEXITCODE -ne 0) {
+      throw "Não foi possível autenticar no MySQL com a senha informada nem sem senha. Se o container já existia, informe a senha original do root."
+    }
+
+    $escapedRootPassword = $script:DbPassword.Replace("'", "''")
+    $sql = "ALTER USER 'root'@'localhost' IDENTIFIED BY '$escapedRootPassword'; FLUSH PRIVILEGES;"
+    & docker exec $script:ContainerName mysql -uroot -h127.0.0.1 -e $sql
+    if ($LASTEXITCODE -ne 0) { throw "O MySQL aceitou root sem senha, mas não foi possível definir a nova senha." }
+    $script:RootPasswordMode = "password"
   } finally {
     if ($null -eq $oldPwd) { Remove-Item Env:MYSQL_PWD -ErrorAction SilentlyContinue }
     else { $env:MYSQL_PWD = $oldPwd }
@@ -79,6 +123,7 @@ Set-Location $ProjectRoot
 $script:ContainerName = "urban-docs-mysql"
 $script:ComposeMode = Get-ComposeMode
 $script:DbMode = ""
+$script:RootPasswordMode = "password"
 
 Write-Step "Verificando o projeto em $ProjectRoot"
 Require-Command pnpm
@@ -103,6 +148,7 @@ if ($UseExistingMySql) {
   Write-Step "Usando um MySQL já instalado no Windows"
   Require-Command mysql
   $script:DbMode = "local"
+  $script:RootPasswordMode = "password"
 } else {
   if (-not $script:ComposeMode) {
     throw "Docker Desktop com Docker Compose não foi encontrado. Instale o Docker Desktop ou execute novamente com -UseExistingMySql após instalar o MySQL local."
@@ -148,14 +194,8 @@ volumes:
   }
   $script:DbMode = "docker"
 
-  Write-Step "Aguardando o MySQL ficar pronto"
-  $ready = $false
-  for ($i = 1; $i -le 60; $i++) {
-    & docker exec -e MYSQL_PWD=$DbPassword $script:ContainerName mysqladmin -uroot -h127.0.0.1 ping --silent *> $null
-    if ($LASTEXITCODE -eq 0) { $ready = $true; break }
-    Start-Sleep -Seconds 2
-  }
-  if (-not $ready) { throw "O MySQL não ficou pronto em 120 segundos. Verifique: docker logs $script:ContainerName" }
+  Wait-ForMySqlContainer
+  Configure-RootPassword
 }
 
 Write-Step "Criando o banco e o usuário da aplicação"
