@@ -129,7 +129,7 @@ export const appRouter = router({
       if (getExtension(input.payload.filename) !== "docx") throw new TRPCError({ code: "BAD_REQUEST", message: "Os modelos devem ser enviados em DOCX." });
       const content = readPayload(input.payload);
       const profile = inspectDocxTemplate(content);
-      if (!profile.markerNames.length) throw new TRPCError({ code: "BAD_REQUEST", message: "Para preservar o layout e preencher modelos futuros, inclua marcadores como {protocolo}, {endereco} ou {zoneamento} no corpo, cabeçalho ou rodapé do DOCX." });
+      if (!profile.textPartNames.includes("word/document.xml")) throw new TRPCError({ code: "BAD_REQUEST", message: "O modelo DOCX não possui um corpo textual válido." });
       const file = await storeFile({ userId: ctx.user.id, category: "template", filename: input.payload.filename, mimeType: input.payload.mimeType, content });
       const template = await db.createTemplate({ userId: ctx.user.id, documentType: input.documentType, name: input.name, version: input.version, fileId: file.id });
       return { template, profile };

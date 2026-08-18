@@ -50,6 +50,25 @@ function xmlEscape(value: string) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+function xmlUnescape(value: string) {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, decimal: string) => String.fromCodePoint(Number.parseInt(decimal, 10)));
+}
+
+function visibleXmlText(xml: string) {
+  return xmlUnescape(xml.replace(/<[^>]*>/g, ""));
+}
+
+function markerNamesFromXml(xml: string) {
+  return Array.from(new Set(Array.from(visibleXmlText(xml).matchAll(/\{([a-zA-Z][a-zA-Z0-9_]*)\}/g)).map((match) => match[1])));
+}
+
 function firstField(fields: Record<string, string | number | boolean>, ...keys: string[]) {
   for (const key of keys) {
     const value = fields[key];
@@ -280,7 +299,7 @@ export async function downloadStorageBytes(fileKey: string) {
 export function inspectDocxTemplate(templateBytes: Uint8Array): TemplateProfile {
   const zip = new PizZip(templateBytes);
   const textPartNames = Object.keys(zip.files).filter((name) => /^word\/(?:document|header\d+|footer\d+)\.xml$/.test(name));
-  const markerNames = Array.from(new Set(textPartNames.flatMap((name) => Array.from((zip.file(name)?.asText() ?? "").matchAll(/\{([a-zA-Z][a-zA-Z0-9_]*)\}/g)).map((match) => match[1]))));
+  const markerNames = Array.from(new Set(textPartNames.flatMap((name) => markerNamesFromXml(zip.file(name)?.asText() ?? ""))));
   return {
     markerNames,
     textPartNames,
@@ -467,31 +486,36 @@ export async function renderDocument(input: {
     const zip = new PizZip(input.templateBytes);
     const textPartNames = Object.keys(zip.files).filter((name) => /^word\/(?:document|header\d+|footer\d+)\.xml$/.test(name));
     const textParts = textPartNames.map((name) => ({ name, xml: zip.file(name)?.asText() ?? "" }));
-    const hasSupportedMarker = Object.keys(fields).some((key) => textParts.some((part) => part.xml.includes(`{${key}}`)));
+    const hasSupportedMarker = Object.keys(fields).some((key) => textParts.some((part) => visibleXmlText(part.xml).includes(`{${key}}`)));
     if (hasSupportedMarker) {
       try {
-      const template = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
-      template.render(fields);
-      docxBytes = template.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" });
+        const template = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+        template.render(fields);
+        docxBytes = template.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" });
       } catch (error) {
-        console.warn("[UrbanDocs] Não foi possível preencher os marcadores do modelo; gerando versão estruturada de contingência.", error instanceof Error ? error.message : error);
+        console.warn("[UrbanDocs] Não foi possível preencher os marcadores do modelo; usando substituição XML preservadora.", error instanceof Error ? error.message : error);
       }
     }
     if (!docxBytes) {
-      let hasLegacyMapping = false;
+      const fallbackZip = new PizZip(input.templateBytes);
+      let hasFallbackMapping = false;
       for (const part of textParts) {
-        const mappedXml = applyLegacyOfficialMapping(input.documentType, part.xml, fields);
+        let mappedXml = part.xml;
+        for (const [key, value] of Object.entries(fields)) {
+          mappedXml = replaceWordText(mappedXml, `{${key}}`, String(value));
+        }
+        mappedXml = applyLegacyOfficialMapping(input.documentType, mappedXml, fields);
         if (mappedXml !== part.xml) {
-          zip.file(part.name, mappedXml);
-          hasLegacyMapping = true;
+          fallbackZip.file(part.name, mappedXml);
+          hasFallbackMapping = true;
         }
       }
-      if (hasLegacyMapping) {
-        docxBytes = zip.generate({ type: "nodebuffer", compression: "DEFLATE" });
+      // Mesmo sem campos substituíveis, o modelo oficial completo continua sendo usado.
+      if (hasFallbackMapping || textParts.length > 0) {
+        docxBytes = fallbackZip.generate({ type: "nodebuffer", compression: "DEFLATE" });
       }
     }
   }
-  if (input.templateBytes && !docxBytes) throw new Error("O modelo DOCX oficial não possui marcadores ou mapeamentos compatíveis para esta certidão.");
   if (!docxBytes) {
     const sections = structuredSections(input.documentType, fields);
     const children: (Paragraph | Table)[] = [

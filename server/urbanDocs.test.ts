@@ -83,6 +83,18 @@ describe("regras documentais urbanísticas", () => {
     expect(Buffer.from(output.pdfBytes).subarray(0, 4).toString()).toBe("%PDF");
   });
 
+  it("usa o modelo DOCX completo mesmo quando ele não possui marcadores", async () => {
+    const model = new Document({ sections: [{ headers: { default: new Header({ children: [new Paragraph("PREFEITURA MUNICIPAL — CABEÇALHO OFICIAL")] }) }, footers: { default: new Footer({ children: [new Paragraph("Rodapé oficial — uso institucional")] }) }, children: [new Paragraph("Conteúdo oficial da tipologia") ] }] });
+    const modelBytes = await Packer.toBuffer(model);
+    expect(inspectDocxTemplate(modelBytes)).toMatchObject({ markerNames: [], hasHeader: true, hasFooter: true, fillMode: "legacy" });
+    const output = await renderDocument({ documentType: "parecer_urbanistico", templateBytes: modelBytes, fields: { protocolo: "PU-2026/02" } });
+    const zip = new PizZip(output.docxBytes);
+    expect(zip.file("word/document.xml")?.asText()).toContain("Conteúdo oficial da tipologia");
+    expect(zip.file("word/header1.xml")?.asText()).toContain("CABEÇALHO OFICIAL");
+    expect(zip.file("word/footer1.xml")?.asText()).toContain("Rodapé oficial");
+    expect(Buffer.from(output.pdfBytes).subarray(0, 4).toString()).toBe("%PDF");
+  });
+
   it("estrutura as certidões de uso do solo, tombamento e desapropriação sem modelo DOCX", async () => {
     const usage = await renderDocument({ documentType: "certidao_uso_ocupacao_solo", fields: { empresa_empreendedora: "Empresa Teste", cnae_atividades: "4520-0/05 — Serviços automotivos", endereco: "Rua Exemplo, 10", zoneamento: "ZC-4", enquadramento: "Permitido" } });
     const heritage = await renderDocument({ documentType: "certidao_tombamento", fields: { endereco: "Avenida Central, 20", resultado_tombamento: "Não há tombamento incidente", validade: "5 anos" } });

@@ -206,6 +206,12 @@ export async function listTemplates(userId: number) {
 export async function setTemplateActive(userId: number, id: number, isActive: boolean) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível.");
+  const selected = await db.select().from(documentTemplates).where(and(eq(documentTemplates.id, id), eq(documentTemplates.userId, userId))).limit(1);
+  const template = selected[0];
+  if (!template) return undefined;
+  if (isActive) {
+    await db.update(documentTemplates).set({ isActive: 0 }).where(and(eq(documentTemplates.userId, userId), eq(documentTemplates.documentType, template.documentType)));
+  }
   await db.update(documentTemplates).set({ isActive: isActive ? 1 : 0 }).where(and(eq(documentTemplates.id, id), eq(documentTemplates.userId, userId)));
   const result = await db.select().from(documentTemplates).where(and(eq(documentTemplates.id, id), eq(documentTemplates.userId, userId))).limit(1);
   return result[0];
