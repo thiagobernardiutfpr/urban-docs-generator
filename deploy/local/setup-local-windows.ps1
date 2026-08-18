@@ -62,7 +62,8 @@ function Invoke-MySql([string]$Sql) {
   try {
     if ($script:DbMode -eq "docker") {
       if ($script:RootPasswordMode -eq "password") {
-        & docker exec -e MYSQL_PWD=$script:DbPassword $script:ContainerName mysql -uroot -h127.0.0.1 -e $Sql
+        $mysqlPasswordEnv = "MYSQL_PWD=$($script:DbPassword)"
+        & docker exec -e $mysqlPasswordEnv $script:ContainerName mysql --protocol=tcp -uroot -h127.0.0.1 -e $Sql
       } else {
         & docker exec $script:ContainerName mysql -uroot -h127.0.0.1 -e $Sql
       }
@@ -94,14 +95,15 @@ function Configure-RootPassword {
   Write-Step "Validando a senha root do MySQL local"
   $oldPwd = $env:MYSQL_PWD
   try {
-    & docker exec -e MYSQL_PWD=$script:DbPassword $script:ContainerName mysqladmin -uroot -h127.0.0.1 ping --silent *> $null
+    $mysqlPasswordEnv = "MYSQL_PWD=$($script:DbPassword)"
+    & docker exec -e $mysqlPasswordEnv $script:ContainerName mysql --protocol=tcp -uroot -h127.0.0.1 -e "SELECT 1;" *> $null
     if ($LASTEXITCODE -eq 0) {
       $script:RootPasswordMode = "password"
       return
     }
 
     Remove-Item Env:MYSQL_PWD -ErrorAction SilentlyContinue
-    & docker exec $script:ContainerName mysqladmin -uroot -h127.0.0.1 ping --silent *> $null
+    & docker exec $script:ContainerName mysql --protocol=tcp -uroot -h127.0.0.1 -e "SELECT 1;" *> $null
     if ($LASTEXITCODE -ne 0) {
       throw "Não foi possível autenticar no MySQL com a senha informada nem sem senha. Se o container já existia, informe a senha original do root."
     }
