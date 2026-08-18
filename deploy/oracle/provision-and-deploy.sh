@@ -15,6 +15,13 @@ IMAGE="${IMAGE:-urban-docs-generator:latest}"
 CONTAINER_NAME="${CONTAINER_NAME:-urban-docs-generator}"
 SERVICE_NAME="${SERVICE_NAME:-urban-docs-generator}"
 APP_PORT="${APP_PORT:-3000}"
+LOCAL_STORAGE_DIR="${LOCAL_STORAGE_DIR:-/var/lib/urban-docs/storage}"
+SPATIAL_DATA_DIR="${SPATIAL_DATA_DIR:-/var/lib/urban-docs/data/spatial}"
+DEFAULT_SPATIAL_SOURCE_PATH="${DEFAULT_SPATIAL_SOURCE_PATH:-${SPATIAL_DATA_DIR}/GEOPACKAGE_22-10-25.gpkg}"
+TERRITORIAL_CADASTRO_PATH="${TERRITORIAL_CADASTRO_PATH:-${SPATIAL_DATA_DIR}/Lotes-cadastro.xlsx}"
+TERRITORIAL_NUMERACAO_PATH="${TERRITORIAL_NUMERACAO_PATH:-${SPATIAL_DATA_DIR}/Lotes-NumQgis.xlsx}"
+TERRITORIAL_ZONEAMENTO_PATH="${TERRITORIAL_ZONEAMENTO_PATH:-${SPATIAL_DATA_DIR}/LotesxZoneamento.xlsx}"
+SPATIAL_UPLOAD_DIR="${SPATIAL_UPLOAD_DIR:-}"
 
 log() {
   printf '\n[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
@@ -81,6 +88,12 @@ read_configuration() {
   local forge_url="${BUILT_IN_FORGE_API_URL:-}"
   local forge_key="${BUILT_IN_FORGE_API_KEY:-}"
   local jwt_secret="${JWT_SECRET:-}"
+  local local_storage_dir="${LOCAL_STORAGE_DIR}"
+  local spatial_data_dir="${SPATIAL_DATA_DIR}"
+  local spatial_source_path="${DEFAULT_SPATIAL_SOURCE_PATH}"
+  local territorial_cadastro_path="${TERRITORIAL_CADASTRO_PATH}"
+  local territorial_numeracao_path="${TERRITORIAL_NUMERACAO_PATH}"
+  local territorial_zoneamento_path="${TERRITORIAL_ZONEAMENTO_PATH}"
 
   # Em atualizações, preserve valores já configurados. O arquivo não é
   # carregado como código shell porque URLs e segredos podem conter caracteres
@@ -90,6 +103,12 @@ read_configuration() {
     [[ -n "$forge_url" ]] || forge_url="$(sed -n 's/^BUILT_IN_FORGE_API_URL=//p' "$ENV_FILE" | head -n 1)"
     [[ -n "$forge_key" ]] || forge_key="$(sed -n 's/^BUILT_IN_FORGE_API_KEY=//p' "$ENV_FILE" | head -n 1)"
     [[ -n "$jwt_secret" ]] || jwt_secret="$(sed -n 's/^JWT_SECRET=//p' "$ENV_FILE" | head -n 1)"
+    [[ -n "$(sed -n 's/^LOCAL_STORAGE_DIR=//p' "$ENV_FILE" | head -n 1)" ]] && local_storage_dir="$(sed -n 's/^LOCAL_STORAGE_DIR=//p' "$ENV_FILE" | head -n 1)"
+    [[ -n "$(sed -n 's/^SPATIAL_DATA_DIR=//p' "$ENV_FILE" | head -n 1)" ]] && spatial_data_dir="$(sed -n 's/^SPATIAL_DATA_DIR=//p' "$ENV_FILE" | head -n 1)"
+    [[ -n "$(sed -n 's/^DEFAULT_SPATIAL_SOURCE_PATH=//p' "$ENV_FILE" | head -n 1)" ]] && spatial_source_path="$(sed -n 's/^DEFAULT_SPATIAL_SOURCE_PATH=//p' "$ENV_FILE" | head -n 1)"
+    [[ -n "$(sed -n 's/^TERRITORIAL_CADASTRO_PATH=//p' "$ENV_FILE" | head -n 1)" ]] && territorial_cadastro_path="$(sed -n 's/^TERRITORIAL_CADASTRO_PATH=//p' "$ENV_FILE" | head -n 1)"
+    [[ -n "$(sed -n 's/^TERRITORIAL_NUMERACAO_PATH=//p' "$ENV_FILE" | head -n 1)" ]] && territorial_numeracao_path="$(sed -n 's/^TERRITORIAL_NUMERACAO_PATH=//p' "$ENV_FILE" | head -n 1)"
+    [[ -n "$(sed -n 's/^TERRITORIAL_ZONEAMENTO_PATH=//p' "$ENV_FILE" | head -n 1)" ]] && territorial_zoneamento_path="$(sed -n 's/^TERRITORIAL_ZONEAMENTO_PATH=//p' "$ENV_FILE" | head -n 1)"
   fi
 
   if [[ -z "$database_url" ]]; then
@@ -117,6 +136,12 @@ NODE_ENV=production
 PORT=${APP_PORT}
 DATABASE_URL=${database_url}
 JWT_SECRET=${jwt_secret}
+LOCAL_STORAGE_DIR=${local_storage_dir}
+SPATIAL_DATA_DIR=${spatial_data_dir}
+DEFAULT_SPATIAL_SOURCE_PATH=${spatial_source_path}
+TERRITORIAL_CADASTRO_PATH=${territorial_cadastro_path}
+TERRITORIAL_NUMERACAO_PATH=${territorial_numeracao_path}
+TERRITORIAL_ZONEAMENTO_PATH=${territorial_zoneamento_path}
 EOF
 
   if [[ -n "$forge_url" ]]; then
@@ -128,6 +153,31 @@ EOF
 
   chmod 600 "$ENV_FILE"
   log "Configuração gravada em ${ENV_FILE} com permissão restrita"
+}
+
+prepare_persistent_directories() {
+  log "Preparando diretórios persistentes de uploads e fontes territoriais"
+  install -d -m 755 "$LOCAL_STORAGE_DIR" "$SPATIAL_DATA_DIR"
+
+  if [[ -n "$SPATIAL_UPLOAD_DIR" ]]; then
+    [[ -d "$SPATIAL_UPLOAD_DIR" ]] || fail "SPATIAL_UPLOAD_DIR não existe: $SPATIAL_UPLOAD_DIR"
+    local uploaded=0
+    local source_name source_path
+    while IFS='|' read -r source_name source_path; do
+      if [[ -s "$SPATIAL_UPLOAD_DIR/$source_name" ]]; then
+        install -o root -g root -m 644 "$SPATIAL_UPLOAD_DIR/$source_name" "$source_path"
+        uploaded=$((uploaded + 1))
+        log "Fonte territorial instalada: $source_path"
+      fi
+    done <<EOF
+GEOPACKAGE_22-10-25.gpkg|$DEFAULT_SPATIAL_SOURCE_PATH
+Lotes-cadastro.xlsx|$TERRITORIAL_CADASTRO_PATH
+Lotes-NumQgis.xlsx|$TERRITORIAL_NUMERACAO_PATH
+LotesxZoneamento.xlsx|$TERRITORIAL_ZONEAMENTO_PATH
+EOF
+    rm -rf "$SPATIAL_UPLOAD_DIR"
+    log "$uploaded arquivo(s) territorial(is) recebido(s) pelo Cloud Shell"
+  fi
 }
 
 checkout_application() {
@@ -182,7 +232,7 @@ Type=simple
 Restart=always
 RestartSec=10
 ExecStartPre=-${runtime_path} rm -f ${CONTAINER_NAME}
-ExecStart=${runtime_path} run --name ${CONTAINER_NAME} --env-file ${ENV_FILE} -p ${APP_PORT}:${APP_PORT} ${IMAGE}
+ExecStart=${runtime_path} run --name ${CONTAINER_NAME} --env-file ${ENV_FILE} -v ${LOCAL_STORAGE_DIR}:${LOCAL_STORAGE_DIR}:Z -v $(dirname "${SPATIAL_DATA_DIR}"):$(dirname "${SPATIAL_DATA_DIR}"):ro,Z -p ${APP_PORT}:${APP_PORT} ${IMAGE}
 ExecStop=${runtime_path} stop -t 15 ${CONTAINER_NAME}
 ExecStopPost=-${runtime_path} rm -f ${CONTAINER_NAME}
 
@@ -218,6 +268,7 @@ main() {
   select_runtime
   read_configuration
   checkout_application
+  prepare_persistent_directories
   build_image
   run_migrations
   write_systemd_unit

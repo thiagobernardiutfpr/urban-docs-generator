@@ -14,6 +14,7 @@ GITHUB_REPO="${GITHUB_REPO:-thiagobernardiutfpr/urban-docs-generator}"
 BRANCH="${BRANCH:-main}"
 DEPLOY_SCRIPT_URL="${DEPLOY_SCRIPT_URL:-https://raw.githubusercontent.com/thiagobernardiutfpr/urban-docs-generator/${BRANCH}/deploy/oracle/provision-and-deploy.sh}"
 SOURCE_ARCHIVE_FILE="${SOURCE_ARCHIVE_FILE:-}"
+SPATIAL_SOURCE_DIR="${SPATIAL_SOURCE_DIR:-}"
 LOCAL_DEPLOY_SCRIPT_FILE=""
 INSTANCE_NAME="${INSTANCE_NAME:-urban-docs-app-cloudshell}"
 NSG_NAME="${NSG_NAME:-urban-docs-app-nsg}"
@@ -101,24 +102,33 @@ require_inputs() {
 
 download_github_assets() {
   LOCAL_DEPLOY_SCRIPT_FILE="$TMP_DIR/provision-and-deploy.sh"
-  [[ -n "$SOURCE_ARCHIVE_FILE" && -s "$SOURCE_ARCHIVE_FILE" ]] && return
+  local need_source_archive="YES"
+  if [[ -n "$SOURCE_ARCHIVE_FILE" && -s "$SOURCE_ARCHIVE_FILE" ]]; then
+    need_source_archive="NO"
+  fi
 
   if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-    log "Baixando o código privado do GitHub usando GITHUB_TOKEN"
-    curl -fsSL \
-      -H "Authorization: Bearer $GITHUB_TOKEN" \
-      -H 'Accept: application/vnd.github+json' \
-      "https://api.github.com/repos/${GITHUB_REPO}/tarball/${BRANCH}" \
-      -o "$TMP_DIR/urban-docs-source.tar.gz"
+    log "Baixando o instalador privado do GitHub usando GITHUB_TOKEN"
+    if [[ "$need_source_archive" == "YES" ]]; then
+      log "Baixando o código privado do GitHub usando GITHUB_TOKEN"
+      curl -fsSL \
+        -H "Authorization: Bearer $GITHUB_TOKEN" \
+        -H 'Accept: application/vnd.github+json' \
+        "https://api.github.com/repos/${GITHUB_REPO}/tarball/${BRANCH}" \
+        -o "$TMP_DIR/urban-docs-source.tar.gz"
+    fi
     curl -fsSL \
       -H "Authorization: Bearer $GITHUB_TOKEN" \
       -H 'Accept: application/vnd.github.raw' \
       "https://api.github.com/repos/${GITHUB_REPO}/contents/deploy/oracle/provision-and-deploy.sh?ref=${BRANCH}" \
       -o "$LOCAL_DEPLOY_SCRIPT_FILE"
   elif command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-    log "Baixando o código privado do GitHub usando a sessão do gh"
-    gh api -H 'Accept: application/vnd.github+json' \
-      "/repos/${GITHUB_REPO}/tarball/${BRANCH}" > "$TMP_DIR/urban-docs-source.tar.gz"
+    log "Baixando o instalador privado do GitHub usando a sessão do gh"
+    if [[ "$need_source_archive" == "YES" ]]; then
+      log "Baixando o código privado do GitHub usando a sessão do gh"
+      gh api -H 'Accept: application/vnd.github+json' \
+        "/repos/${GITHUB_REPO}/tarball/${BRANCH}" > "$TMP_DIR/urban-docs-source.tar.gz"
+    fi
     gh api -H 'Accept: application/vnd.github.raw' \
       "/repos/${GITHUB_REPO}/contents/deploy/oracle/provision-and-deploy.sh?ref=${BRANCH}" \
       > "$LOCAL_DEPLOY_SCRIPT_FILE"
@@ -126,8 +136,10 @@ download_github_assets() {
     fail "O repositório GitHub é privado. No Cloud Shell, execute gh auth login ou exporte GITHUB_TOKEN com permissão somente de leitura do conteúdo do repositório antes de rodar este script."
   fi
 
-  SOURCE_ARCHIVE_FILE="$TMP_DIR/urban-docs-source.tar.gz"
-  chmod 600 "$SOURCE_ARCHIVE_FILE"
+  if [[ "$need_source_archive" == "YES" ]]; then
+    SOURCE_ARCHIVE_FILE="$TMP_DIR/urban-docs-source.tar.gz"
+    chmod 600 "$SOURCE_ARCHIVE_FILE"
+  fi
   chmod 700 "$LOCAL_DEPLOY_SCRIPT_FILE"
 }
 
@@ -525,6 +537,32 @@ upload_source_if_available() {
   scp "${opts[@]}" "$SOURCE_ARCHIVE_FILE" "$SSH_USER@$PUBLIC_IP:/tmp/urban-docs-source.tar.gz" >/dev/null
 }
 
+upload_spatial_if_available() {
+  [[ -n "$SPATIAL_SOURCE_DIR" ]] || return
+  [[ -d "$SPATIAL_SOURCE_DIR" ]] || fail "SPATIAL_SOURCE_DIR não existe: $SPATIAL_SOURCE_DIR"
+
+  local -a opts
+  local file uploaded=0
+  mapfile -t opts < <(ssh_opts)
+  ssh "${opts[@]}" "$SSH_USER@$PUBLIC_IP" 'sudo rm -rf /tmp/urban-docs-spatial && sudo install -d -m 700 /tmp/urban-docs-spatial && sudo chown "$(id -u):$(id -g)" /tmp/urban-docs-spatial' >/dev/null
+
+  for file in GEOPACKAGE_22-10-25.gpkg Lotes-cadastro.xlsx Lotes-NumQgis.xlsx LotesxZoneamento.xlsx; do
+    if [[ -s "$SPATIAL_SOURCE_DIR/$file" ]]; then
+      log "Enviando fonte territorial: $file"
+      scp "${opts[@]}" "$SPATIAL_SOURCE_DIR/$file" "$SSH_USER@$PUBLIC_IP:/tmp/urban-docs-spatial/$file" >/dev/null
+      uploaded=$((uploaded + 1))
+    fi
+  done
+
+  if [[ "$uploaded" -eq 0 ]]; then
+    ssh "${opts[@]}" "$SSH_USER@$PUBLIC_IP" 'sudo rm -rf /tmp/urban-docs-spatial' >/dev/null
+    log "AVISO: nenhum arquivo territorial encontrado em $SPATIAL_SOURCE_DIR"
+    SPATIAL_SOURCE_DIR=""
+  else
+    log "$uploaded fonte(s) territorial(is) enviada(s) para a VM"
+  fi
+}
+
 upload_config_if_needed() {
   local -a opts
   prepare_secret_file
@@ -544,14 +582,18 @@ run_remote_deploy() {
   local -a opts remote_command
   mapfile -t opts < <(ssh_opts)
   log "Executando o deploy remoto"
-  if [[ -n "$SOURCE_ARCHIVE_FILE" ]]; then
+  if [[ -n "$SOURCE_ARCHIVE_FILE" && -n "$SPATIAL_SOURCE_DIR" ]]; then
+    remote_command='sudo env SOURCE_ARCHIVE_FILE=/tmp/urban-docs-source.tar.gz SPATIAL_UPLOAD_DIR=/tmp/urban-docs-spatial bash -s'
+  elif [[ -n "$SOURCE_ARCHIVE_FILE" ]]; then
     remote_command='sudo env SOURCE_ARCHIVE_FILE=/tmp/urban-docs-source.tar.gz bash -s'
+  elif [[ -n "$SPATIAL_SOURCE_DIR" ]]; then
+    remote_command='sudo env SPATIAL_UPLOAD_DIR=/tmp/urban-docs-spatial bash -s'
   else
     remote_command='sudo bash -s'
   fi
   ssh "${opts[@]}" -tt "$SSH_USER@$PUBLIC_IP" "$remote_command" < "$LOCAL_DEPLOY_SCRIPT_FILE"
-  if [[ -n "$SOURCE_ARCHIVE_FILE" ]]; then
-    ssh "${opts[@]}" "$SSH_USER@$PUBLIC_IP" 'sudo rm -f /tmp/urban-docs-source.tar.gz' >/dev/null || true
+  if [[ -n "$SOURCE_ARCHIVE_FILE" || -n "$SPATIAL_SOURCE_DIR" ]]; then
+    ssh "${opts[@]}" "$SSH_USER@$PUBLIC_IP" 'sudo rm -f /tmp/urban-docs-source.tar.gz; sudo rm -rf /tmp/urban-docs-spatial' >/dev/null || true
   fi
 }
 
@@ -583,6 +625,7 @@ main() {
   wait_for_ssh
   wait_for_cloud_init
   upload_source_if_available
+  upload_spatial_if_available
   upload_config_if_needed
   run_remote_deploy
 

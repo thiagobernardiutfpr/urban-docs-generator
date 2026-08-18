@@ -197,7 +197,31 @@ export TARGET_PUBLIC_IP="137.131.140.39"
 
 Quando `TARGET_PUBLIC_IP` é informado, o script reutiliza a VM localizada pelo IP. Sem essa variável, ele reutiliza uma instância encontrada pelo `INSTANCE_NAME`; não use o mesmo nome de uma VM antiga que você pretende abandonar.
 
-## 9. Executar o provisionamento
+## 9. Preparar as fontes territoriais para produção
+
+O código do GitHub não deve conter o GeoPackage nem as planilhas territoriais. Para enviá-los pelo Cloud Shell, crie uma pasta e use o botão de **upload** do próprio Cloud Shell para carregar estes quatro arquivos com os nomes exatos:
+
+```bash
+mkdir -p ~/urban-docs-deploy/spatial
+ls -lh ~/urban-docs-deploy/spatial
+```
+
+```text
+GEOPACKAGE_22-10-25.gpkg
+Lotes-cadastro.xlsx
+Lotes-NumQgis.xlsx
+LotesxZoneamento.xlsx
+```
+
+Depois de carregar os arquivos, configure a pasta para que o script os copie à VM:
+
+```bash
+export SPATIAL_SOURCE_DIR="$HOME/urban-docs-deploy/spatial"
+```
+
+O script instalará os arquivos em `/var/lib/urban-docs/data/spatial`, configurará as variáveis territoriais no arquivo protegido da aplicação e montará esse diretório como somente leitura no container. O armazenamento de documentos ficará persistente em `/var/lib/urban-docs/storage`. Se os quatro arquivos ainda não estiverem disponíveis, o deploy poderá continuar, mas o cruzamento territorial não estará ativo na produção.
+
+## 10. Executar o provisionamento
 
 Como a VM já possui o IP público `137.131.140.39`, informe esse endereço para que o script a localize e reutilize. Isso evita que uma segunda VM seja criada:
 
@@ -229,12 +253,13 @@ O script seguirá estas etapas:
 11. Criará ou reutilizará a VM `VM.Standard.A1.Flex`, com 1 OCPU e 6 GB de memória por padrão.
 12. Aguardará o SSH e o cloud-init.
 13. Enviará o código compactado à VM, sem exigir clone privado dentro dela.
-14. Solicitará a configuração do banco e do armazenamento.
-15. Construirá a imagem de produção.
-16. Aplicará `pnpm db:push`.
-17. Criará um serviço systemd.
-18. Abrirá a porta 3000 no firewall interno da VM.
-19. Verificará a resposta local da aplicação.
+14. Instalará as fontes territoriais enviadas e criará os diretórios persistentes.
+15. Solicitará a configuração do banco e do armazenamento.
+16. Construirá a imagem de produção.
+17. Aplicará `pnpm db:push`.
+18. Criará um serviço systemd.
+19. Abrirá a porta 3000 no firewall interno da VM.
+20. Verificará a resposta local da aplicação.
 
 O script exibirá um plano antes de criar recursos. Leia a VCN, subnet, forma, CIDRs e nome da VM. Digite:
 
@@ -244,7 +269,7 @@ CREATE
 
 somente se tudo estiver correto.
 
-## 10. Informar a conexão do banco
+## 11. Informar a conexão do banco
 
 Depois que a VM for criada e acessível, o script solicitará `DATABASE_URL`. Informe:
 
@@ -264,7 +289,7 @@ O arquivo final ficará na VM em:
 
 com permissão `600`. O arquivo não é commitado no GitHub.
 
-## 11. Configurar armazenamento de arquivos
+## 12. Configurar armazenamento de arquivos
 
 O aplicativo também precisa armazenar uploads, DOCX, PDFs e PDFs assinados. Quando o script solicitar:
 
@@ -277,7 +302,7 @@ informe os valores somente se o serviço de armazenamento estiver configurado pa
 
 Para produção externa, configure um armazenamento S3-compatible, como Cloudflare R2, Backblaze B2 ou Amazon S3, e adapte as variáveis do aplicativo conforme a implementação do projeto.
 
-## 12. Abrir o Urban Docs
+## 13. Abrir o Urban Docs
 
 Ao terminar, o script exibirá algo semelhante a:
 
@@ -294,7 +319,7 @@ http://137.131.140.39:3000/
 
 O endereço pode ser acessado por qualquer usuário se `APP_SOURCE_CIDR` estiver em `0.0.0.0/0` e as regras de segurança estiverem corretas.
 
-## 13. Validar a aplicação
+## 14. Validar a aplicação
 
 No Cloud Shell, substitua `IP_PUBLICO_DA_VM` pelo IP exibido no final:
 
@@ -330,7 +355,7 @@ nc -vz 10.0.1.62 3306
 
 O teste deve indicar que a porta está aberta. Se falhar, ajuste a regra de entrada TCP 3306 no Security List ou Network Security Group do DB System, permitindo o CIDR da subnet da VM.
 
-## 14. Testar a criação anônima
+## 15. Testar a criação anônima
 
 No navegador:
 
@@ -344,7 +369,7 @@ No navegador:
 
 Para o fluxo completo, configure também o armazenamento de arquivos e os serviços de geração de documentos.
 
-## 15. Atualizar o aplicativo posteriormente
+## 16. Atualizar o aplicativo posteriormente
 
 No Cloud Shell, mantenha a chave e a sessão do GitHub. Baixe a versão atual do script novamente:
 
@@ -372,7 +397,7 @@ export FORCE_CONFIG="YES"
 
 Não use `FORCE_CONFIG=YES` sem ter os valores corretos de `DATABASE_URL`, `JWT_SECRET` e armazenamento.
 
-## 16. Diagnóstico de erros
+## 17. Diagnóstico de erros
 
 | Mensagem | Causa provável | Correção |
 |---|---|---|
@@ -388,7 +413,7 @@ Não use `FORCE_CONFIG=YES` sem ter os valores corretos de `DATABASE_URL`, `JWT_
 | Aplicação abre, mas upload falha | Armazenamento não configurado | Configure o serviço S3-compatible e as variáveis necessárias |
 | Aplicação reinicia continuamente | Falha no ambiente ou migração | Use `journalctl -u urban-docs-generator -n 100` |
 
-## 17. Segurança após o primeiro teste
+## 18. Segurança após o primeiro teste
 
 Depois de confirmar que o site funciona:
 
