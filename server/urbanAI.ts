@@ -28,6 +28,7 @@ type FileExtractionInput = {
   filename: string;
   mimeType: string;
   storageKey: string;
+  storageUrl?: string;
 };
 
 type AnalysisInput = {
@@ -157,7 +158,9 @@ export async function analyzeUrbanInstruction(input: AnalysisInput): Promise<Urb
 
 export async function analyzeUploadedFile(input: FileExtractionInput): Promise<FileExtractionAnalysis> {
   const extension = input.filename.split(".").pop()?.toLowerCase() ?? "";
-  const localBytes = await readLocalStorageBytes(input.storageKey);
+  const localBytes = await readLocalStorageBytes(input.storageKey, input.storageUrl);
+  const localReference = input.storageKey.startsWith("local:") || input.storageKey.startsWith("/local-storage/") || input.storageUrl?.startsWith("/local-storage/");
+  if (localReference && !localBytes) throw new Error("O arquivo local não foi encontrado no armazenamento configurado.");
   const signedUrl = localBytes ? undefined : await storageGetSignedUrl(input.storageKey);
   const allowedFields = [
     { key: "protocolo", label: "Número do protocolo", help: "Número do processo ou protocolo administrativo" },

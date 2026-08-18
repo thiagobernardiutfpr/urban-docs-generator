@@ -24,16 +24,31 @@ function normalizeKey(relKey: string): string {
 }
 
 const LOCAL_KEY_PREFIX = "local:";
+const LOCAL_STORAGE_URL_PREFIX = "/local-storage/";
 
 function localStorageRoot() {
   return process.env.LOCAL_STORAGE_DIR?.trim() || "";
+}
+
+/**
+ * Converte chaves novas (`local:...`), URLs locais (`/local-storage/...`) e
+ * chaves antigas sem prefixo em uma chave local segura. O último formato é
+ * necessário para ler registros criados antes da adoção do prefixo `local:`.
+ */
+export function localStorageKeyFromValue(value: string) {
+  const normalized = value.trim();
+  if (!normalized) return undefined;
+  if (normalized.startsWith(LOCAL_KEY_PREFIX)) return normalized;
+  if (normalized.startsWith(LOCAL_STORAGE_URL_PREFIX)) return `${LOCAL_KEY_PREFIX}${normalized.slice(LOCAL_STORAGE_URL_PREFIX.length)}`;
+  return normalized.startsWith("/") ? undefined : `${LOCAL_KEY_PREFIX}${normalizeKey(normalized)}`;
 }
 
 export function resolveLocalStoragePath(relKey: string) {
   const root = localStorageRoot();
   if (!root) throw new Error("Armazenamento local não configurado: defina LOCAL_STORAGE_DIR.");
   const resolvedRoot = path.resolve(root);
-  const relative = normalizeKey(relKey).replace(/^local:/, "");
+  const localKey = localStorageKeyFromValue(relKey);
+  const relative = normalizeKey(localKey ?? relKey).replace(/^local:/, "");
   const resolvedFile = path.resolve(resolvedRoot, relative);
   if (resolvedFile !== resolvedRoot && !resolvedFile.startsWith(`${resolvedRoot}${path.sep}`)) {
     throw new Error("Caminho de armazenamento local inválido.");
@@ -41,9 +56,16 @@ export function resolveLocalStoragePath(relKey: string) {
   return resolvedFile;
 }
 
-export async function readLocalStorageBytes(storageKey: string) {
-  if (!storageKey.startsWith(LOCAL_KEY_PREFIX)) return undefined;
-  return new Uint8Array(await readFile(resolveLocalStoragePath(storageKey)));
+export async function readLocalStorageBytes(storageKey: string, storageUrl?: string) {
+  if (!localStorageRoot()) return undefined;
+  const localKey = localStorageKeyFromValue(storageKey) ?? (storageUrl ? localStorageKeyFromValue(storageUrl) : undefined);
+  if (!localKey) return undefined;
+  try {
+    return new Uint8Array(await readFile(resolveLocalStoragePath(localKey)));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
 }
 
 function appendHashSuffix(relKey: string): string {
@@ -112,7 +134,8 @@ export async function storageGet(relKey: string): Promise<{ key: string; url: st
 }
 
 export async function storageGetSignedUrl(relKey: string): Promise<string> {
-  if (relKey.startsWith(LOCAL_KEY_PREFIX)) return `/local-storage/${relKey.slice(LOCAL_KEY_PREFIX.length)}`;
+  const localKey = localStorageKeyFromValue(relKey);
+  if (localKey && (relKey.startsWith(LOCAL_KEY_PREFIX) || relKey.startsWith(LOCAL_STORAGE_URL_PREFIX))) return `${LOCAL_STORAGE_URL_PREFIX}${localKey.slice(LOCAL_KEY_PREFIX.length)}`;
   const { forgeUrl, forgeKey } = getForgeConfig();
   const key = normalizeKey(relKey);
 

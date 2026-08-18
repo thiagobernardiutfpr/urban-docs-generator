@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Document, Paragraph, Packer } from "docx";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const mocks = vi.hoisted(() => ({
@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("./_core/llm", () => ({ invokeLLM: mocks.invokeLLM }));
 
 import { analyzeUploadedFile } from "./urbanAI";
-import { storagePut } from "./storage";
+import { resolveLocalStoragePath, storagePut } from "./storage";
 
 const root = path.join(process.cwd(), "tmp", "urban-ai-local-storage-test");
 
@@ -41,6 +41,32 @@ describe("análise de arquivos no armazenamento local", () => {
     });
 
     expect(result.summary).toBe("Arquivo lido");
+    expect(mocks.invokeLLM).toHaveBeenCalledOnce();
+  });
+
+  it("analisa DOCX legado usando a URL local registrada na base", async () => {
+    process.env.LOCAL_STORAGE_DIR = root;
+    await mkdir(root, { recursive: true });
+    mocks.invokeLLM.mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify({ summary: "Arquivo legado lido", warnings: [], suggestions: [], requiresHumanReview: true }) } }],
+    });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("fetch não deveria ser chamado para URL local")));
+
+    const legacyKey = "urban-docs/1/requests/2/documento_legacy.docx";
+    const docxBytes = await Packer.toBuffer(new Document({ sections: [{ children: [new Paragraph("Documento legado")] }] }));
+    const filePath = resolveLocalStoragePath(legacyKey);
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, docxBytes);
+
+    const result = await analyzeUploadedFile({
+      documentType: "certidao_uso_ocupacao_solo",
+      filename: "documento_legacy.docx",
+      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      storageKey: legacyKey,
+      storageUrl: `/local-storage/${legacyKey}`,
+    });
+
+    expect(result.summary).toBe("Arquivo legado lido");
     expect(mocks.invokeLLM).toHaveBeenCalledOnce();
   });
 });

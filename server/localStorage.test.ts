@@ -1,7 +1,7 @@
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { readLocalStorageBytes, resolveLocalStoragePath, storagePut } from "./storage";
+import { localStorageKeyFromValue, readLocalStorageBytes, resolveLocalStoragePath, storagePut } from "./storage";
 
 const root = path.join(process.cwd(), "tmp", "local-storage-test");
 
@@ -21,6 +21,19 @@ describe("armazenamento local", () => {
     expect(stored.key).toMatch(/^local:urban-docs\/teste_[a-f0-9]{8}\.txt$/);
     expect(stored.url).toMatch(/^\/local-storage\/urban-docs\/teste_[a-f0-9]{8}\.txt$/);
     expect(Buffer.from(bytes ?? []).toString("utf8")).toBe("conteúdo local");
+  });
+
+  it("lê arquivos legados por chave sem prefixo e por URL local relativa", async () => {
+    process.env.LOCAL_STORAGE_DIR = root;
+    const legacyKey = "urban-docs/1/requests/2/arquivo_antigo.docx";
+    const filePath = resolveLocalStoragePath(legacyKey);
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, Buffer.from("arquivo legado"));
+
+    expect(localStorageKeyFromValue(legacyKey)).toBe(`local:${legacyKey}`);
+    expect(localStorageKeyFromValue(`/local-storage/${legacyKey}`)).toBe(`local:${legacyKey}`);
+    expect(Buffer.from((await readLocalStorageBytes(legacyKey)) ?? []).toString("utf8")).toBe("arquivo legado");
+    expect(Buffer.from((await readLocalStorageBytes(`/local-storage/${legacyKey}`)) ?? []).toString("utf8")).toBe("arquivo legado");
   });
 
   it("recusa caminhos fora da raiz local", () => {

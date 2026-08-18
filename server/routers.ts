@@ -114,7 +114,7 @@ export const appRouter = router({
       const file = await db.getFileById(ctx.user.id, input.fileId);
       if (!request || !file || file.requestId !== input.requestId) throw new TRPCError({ code: "NOT_FOUND", message: "Arquivo ou solicitação não encontrados." });
       try {
-        const analysis = await analyzeUploadedFile({ documentType: request.documentType as keyof typeof documentSchemas, filename: file.filename, mimeType: file.mimeType, storageKey: file.storageKey });
+        const analysis = await analyzeUploadedFile({ documentType: request.documentType as keyof typeof documentSchemas, filename: file.filename, mimeType: file.mimeType, storageKey: file.storageKey, storageUrl: file.storageUrl });
         const audit = await db.createAiAudit({ userId: ctx.user.id, requestId: request.id, feature: "file_extraction", model: "gpt-5-mini", inputSnapshot: { fileId: file.id, filename: file.filename, mimeType: file.mimeType }, outputSnapshot: analysis });
         return { analysis, auditId: audit.id, fileId: file.id };
       } catch (error) {
