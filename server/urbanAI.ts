@@ -8,7 +8,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
-import { storageGetSignedUrl } from "./storage";
+import { readLocalStorageBytes, storageGetSignedUrl } from "./storage";
 
 const execFileAsync = promisify(execFile);
 
@@ -157,7 +157,8 @@ export async function analyzeUrbanInstruction(input: AnalysisInput): Promise<Urb
 
 export async function analyzeUploadedFile(input: FileExtractionInput): Promise<FileExtractionAnalysis> {
   const extension = input.filename.split(".").pop()?.toLowerCase() ?? "";
-  const signedUrl = await storageGetSignedUrl(input.storageKey);
+  const localBytes = await readLocalStorageBytes(input.storageKey);
+  const signedUrl = localBytes ? undefined : await storageGetSignedUrl(input.storageKey);
   const allowedFields = [
     { key: "protocolo", label: "Número do protocolo", help: "Número do processo ou protocolo administrativo" },
     { key: "inscricao_imobiliaria", label: "Inscrição imobiliária", help: "Cadastro ou inscrição do imóvel" },
@@ -168,13 +169,18 @@ export async function analyzeUploadedFile(input: FileExtractionInput): Promise<F
   const instruction = `Extraia somente informações explicitamente presentes no arquivo para a tipologia ${documentTypeLabels[input.documentType]}. Campos permitidos: ${JSON.stringify(allowedFields)}. Não invente valores, legislação, zoneamento, pareceres ou conclusões. Registre a evidência textual ou visual de cada sugestão e sinalize qualquer ambiguidade. A saída será revisada por uma pessoa antes de preencher o processo.`;
   let content: unknown;
   if (["jpg", "jpeg", "png"].includes(extension)) {
-    content = [{ type: "text", text: instruction }, { type: "image_url", image_url: { url: signedUrl, detail: "auto" } }];
+    const imageUrl = signedUrl ?? `data:${input.mimeType};base64,${Buffer.from(localBytes ?? []).toString("base64")}`;
+    content = [{ type: "text", text: instruction }, { type: "image_url", image_url: { url: imageUrl, detail: "auto" } }];
   } else if (extension === "pdf") {
+    if (!signedUrl) throw new Error("A análise de PDF armazenado localmente requer uma URL pública ou extração local de texto.");
     content = [{ type: "text", text: instruction }, { type: "file_url", file_url: { url: signedUrl, mime_type: "application/pdf" } }];
   } else {
-    const response = await fetch(signedUrl);
-    if (!response.ok) throw new Error("Não foi possível recuperar o arquivo enviado para análise.");
-    const bytes = new Uint8Array(await response.arrayBuffer());
+    const bytes = localBytes ?? await (async () => {
+      if (!signedUrl) throw new Error("Não foi possível resolver o arquivo enviado para análise.");
+      const response = await fetch(signedUrl);
+      if (!response.ok) throw new Error("Não foi possível recuperar o arquivo enviado para análise.");
+      return new Uint8Array(await response.arrayBuffer());
+    })();
     const extractedText = extension === "docx" ? extractDocxText(bytes) : extension === "doc" ? await extractLegacyDocText(bytes, input.filename) : extension === "dwg" ? extractDwgText(bytes) : "";
     const dwgNotice = extension === "dwg" ? "O DWG foi lido por metadados textuais disponíveis; geometria, escala e medidas requerem conferência no projeto técnico." : "";
     content = `${instruction}\n${dwgNotice}\nConteúdo extraído do arquivo:\n${extractedText || "Não foi possível extrair texto confiável."}`;
