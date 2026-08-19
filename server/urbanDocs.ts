@@ -33,6 +33,35 @@ export type TemplateProfile = {
 };
 const execFileAsync = promisify(execFile);
 
+const officialTemplateFiles: Partial<Record<keyof typeof documentTypeLabels, string>> = {
+  autorizacao_uso_espaco_publico: "Autorizacao_Uso_Espaco_Publico.docx",
+  certidao_desapropriacao: "Certidao_de_Desapropriacao.docx",
+  certidao_perimetro_urbano: "Certidao_de_Perimetro_Urbano.docx",
+  certidao_uso_ocupacao_solo: "Certidao_de_Uso_e_Ocupacao_do_Solo.docx",
+  certidao_tombamento: "Certidao_Tombamento.docx",
+  diretriz_loteamento: "Diretriz_de_Loteamento.docx",
+  parecer_eiv: "EIV.docx",
+  avaliacao_previa_impacto_vizinhanca: "Pre_EIV.docx",
+  autorizacao_engenho_publicitario: "Engenhos_Publicitarios.docx",
+  laudo_viabilidade: "Laudo_de_Viabilidade.docx",
+  parecer_tecnico: "Parecer_Tecnico.docx",
+  parecer_urbanistico: "Parecer_Urbanistico.docx",
+  informacao: "Pedido_de_Informacao.docx",
+  oficio: "Pedido_de_Informacao.docx",
+};
+
+export async function loadBundledOfficialTemplate(documentType: keyof typeof documentTypeLabels) {
+  const filename = officialTemplateFiles[documentType];
+  if (!filename) return undefined;
+  try {
+    return await readFile(path.join(process.cwd(), "assets", "templates", filename));
+  } catch (error) {
+    const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+    if (code === "ENOENT") return undefined;
+    throw error;
+  }
+}
+
 function safeFilename(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]/g, "_").replace(/_+/g, "_").slice(0, 80) || "documento";
 }
@@ -132,9 +161,49 @@ function applyLegacyOfficialMapping(documentType: keyof typeof documentTypeLabel
   const compliance = firstField(fields, "enquadramento");
   const protocol = firstField(fields, "protocolo");
   const certificateNumber = firstField(fields, "numero_certidao", "numero_documento") ?? protocol;
-  const replacements: Array<[string, string | undefined]> = [["8684/2025", firstField(fields, "protocolo")], ["86842/2025", firstField(fields, "protocolo")]];
+  const responsible = firstField(fields, "responsavel_tecnico", "responsavel", "tecnico_responsavel");
+  const subject = firstField(fields, "assunto", "objeto");
+  const replacements: Array<[string, string | undefined]> = [["8684/2025", protocol], ["86842/2025", protocol]];
   if (documentType === "laudo_viabilidade") replacements.push(["Estrada da Colônia Esperança", address], ["Gleba Pirapó", neighborhood], ["ZRCH – Zona Residencial de Chácaras", zone], ["268", lot]);
-  if (documentType === "parecer_eiv") replacements.push(["CONDOMÍNIO RECANTO MUNDO NOVO", enterprise], ["LEBI CONSTRUTORA LTDA", firstField(fields, "interessado", "requerente")], ["Rua México, S/ N", address], ["Rua México", address], ["ZR3 – Zona Residencial Três", zone]);
+  if (documentType === "parecer_eiv") replacements.push(
+    ["1 5597 /2026", protocol],
+    ["15597/2026", protocol],
+    ["CONDOMÍNIO RECANTO MUNDO NOVO", enterprise],
+    ["complexo multiuso aurora boreal spe ltda", enterprise],
+    ["LEBI CONSTRUTORA LTDA", firstField(fields, "interessado", "requerente")],
+    ["Rua México, S/ N", address],
+    ["Rua México", address],
+    ["ZR3 – Zona Residencial Três", zone],
+    ["gerson guariente junior", responsible],
+    ["março de 2026", firstField(fields, "data_emissao")],
+    ["6 2 . 815 . 763 /0001- 48", firstField(fields, "cnpj_cpf", "cnpj", "cpf")],
+  );
+  if (documentType === "parecer_tecnico") replacements.push(
+    ["PARECER TÉCNICO Nº 0 1 7 /202 6", firstField(fields, "numero_parecer", "numero_documento") ? `PARECER TÉCNICO Nº ${firstField(fields, "numero_parecer", "numero_documento")}` : undefined],
+    ["017/2026", firstField(fields, "numero_parecer", "numero_documento")],
+    ["12016 /202 6", protocol],
+    ["12016 /2026", protocol],
+    ["159 -A", lot],
+    ["anderson  de  araujo", company],
+    ["Acesso a BR 376", address],
+    ["Gleba Patrimônio  Pirapó", neighborhood],
+    ["5.129", registry],
+    ["15 . 958 , 40m ²", area],
+    ["-23.56483097448003 -51.53009178364864", coordinates],
+    ["Z I2 Zona Industrial Dois", zone],
+    ["esclarecimentos  acerca da viabilidade  para ligação de padrão de energia elétrica", subject],
+    ["Anderson de Araujo", company],
+  );
+  if (documentType === "autorizacao_uso_espaco_publico") replacements.push(
+    ["28984 /202 6", protocol],
+    ["28984/2026", protocol],
+    ["SIMONE RODRIGUES DE MORAES METTA", company],
+    ["VENDA DE FLORES", firstField(fields, "finalidade_uso", "finalidade", "atividade")],
+    ["PRAÇA RUI BARBOSA, Nº 180  –  EM FRENTE AO BRANCO BRADESCO", address],
+    ["09  de  maio  de 202 6", firstField(fields, "data_inicio_uso", "data_inicio")],
+    ["10   de  maio  de 2 02 6", firstField(fields, "data_fim_uso", "data_fim")],
+    ["7 h às  18 h", firstField(fields, "horario")],
+  );
   if (documentType === "diretriz_loteamento") replacements.push(["Rua Mutsumi Ohara Nishikawa", address], ["108-Remanescente/107-3/H-Remanescente", lot], ["449321.55L, 7393491.80N", coordinates], ["161.446,58m²", area], ["32.379", registry], ["ZR2 – Zona Residencial Dois", zone]);
   if (documentType === "certidao_uso_ocupacao_solo") replacements.push(
     ["77/2026", certificateNumber],

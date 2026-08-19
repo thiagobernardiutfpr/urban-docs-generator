@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   createDocumentApproval: vi.fn(),
   storagePut: vi.fn(),
   downloadStorageBytes: vi.fn(),
+  loadBundledOfficialTemplate: vi.fn(),
   renderDocument: vi.fn(),
   signPdfWithSystemStamp: vi.fn(),
 }));
@@ -29,7 +30,7 @@ vi.mock("./db", () => ({
 }));
 
 vi.mock("./storage", () => ({ storagePut: mocks.storagePut }));
-vi.mock("./urbanDocs", () => ({ downloadStorageBytes: mocks.downloadStorageBytes, renderDocument: mocks.renderDocument, signPdfWithSystemStamp: mocks.signPdfWithSystemStamp }));
+vi.mock("./urbanDocs", () => ({ downloadStorageBytes: mocks.downloadStorageBytes, loadBundledOfficialTemplate: mocks.loadBundledOfficialTemplate, renderDocument: mocks.renderDocument, signPdfWithSystemStamp: mocks.signPdfWithSystemStamp }));
 
 import { appRouter } from "./routers";
 

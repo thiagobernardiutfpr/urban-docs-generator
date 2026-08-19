@@ -44,6 +44,14 @@ const dynamicFields: Record<DocumentType, Array<{ key: string; label: string; pl
     { key: "destinatario", label: "Destinatário", placeholder: "Órgão, setor ou interessado" },
     { key: "assunto", label: "Assunto", placeholder: "Síntese do objeto do ofício" },
   ],
+  parecer_tecnico: [
+    { key: "assunto", label: "Assunto", placeholder: "Objeto do parecer técnico" },
+    { key: "analise_tecnica", label: "Análise técnica", placeholder: "Fundamentação técnica do parecer" },
+  ],
+  autorizacao_uso_espaco_publico: [
+    { key: "finalidade_uso", label: "Finalidade do uso", placeholder: "Atividade ou finalidade solicitada" },
+    { key: "endereco", label: "Local do espaço público", placeholder: "Praça, via, número e referência" },
+  ],
   autorizacao_engenho_publicitario: [
     { key: "tipo_engenho", label: "Tipo de engenho", placeholder: "Ex.: painel, letreiro, totem" },
     { key: "dimensoes", label: "Dimensões", placeholder: "Ex.: 3,00 m x 1,50 m" },

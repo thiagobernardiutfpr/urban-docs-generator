@@ -10,7 +10,7 @@ import { attachmentContinuation, canApproveEmission, canReviewAi, canTransitionR
 import { documentSchemas } from "../shared/documentFields";
 import { getDemonstrationRequest } from "../shared/documentDemoData";
 import { getPdfPreviewUrl } from "../shared/documentPreview";
-import { buildGeoPackageEnrollmentQuery, extractLocalTerritorialTables, inspectDocxTemplate, projectPosition, renderDocument, signPdfWithSystemStamp } from "./urbanDocs";
+import { buildGeoPackageEnrollmentQuery, extractLocalTerritorialTables, inspectDocxTemplate, loadBundledOfficialTemplate, projectPosition, renderDocument, signPdfWithSystemStamp } from "./urbanDocs";
 
 const officialTemplatesPath = "/home/ubuntu/webdev-static-assets";
 const officialTemplateNames = [
@@ -44,6 +44,32 @@ describe("regras documentais urbanísticas", () => {
   it("permite iniciar a emissão enquanto o processo ainda está em coleta de insumos", () => {
     expect(canTransitionRequestStatus("collecting", "processing")).toBe(true);
     expect(canTransitionRequestStatus("processing", "completed")).toBe(true);
+  });
+
+  it("carrega todos os modelos oficiais empacotados com cabeçalho e rodapé", async () => {
+    const bundledTypes = [
+      "autorizacao_uso_espaco_publico",
+      "certidao_desapropriacao",
+      "certidao_perimetro_urbano",
+      "certidao_uso_ocupacao_solo",
+      "certidao_tombamento",
+      "diretriz_loteamento",
+      "parecer_eiv",
+      "avaliacao_previa_impacto_vizinhanca",
+      "autorizacao_engenho_publicitario",
+      "laudo_viabilidade",
+      "parecer_tecnico",
+      "parecer_urbanistico",
+      "informacao",
+    ] as const;
+
+    for (const documentType of bundledTypes) {
+      const bytes = await loadBundledOfficialTemplate(documentType);
+      expect(bytes, documentType).toBeDefined();
+      expect(Buffer.from(bytes!).subarray(0, 2).toString(), documentType).toBe("PK");
+      expect(inspectDocxTemplate(bytes!).hasHeader, documentType).toBe(true);
+      expect(inspectDocxTemplate(bytes!).hasFooter, documentType).toBe(true);
+    }
   });
 
   it("gera versões DOCX e PDF quando não há modelo oficial associado", async () => {

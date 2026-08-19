@@ -12,7 +12,7 @@ import { storagePut } from "./storage";
 import { ENV } from "./_core/env";
 import { analyzeUploadedFile, analyzeUrbanInstruction } from "./urbanAI";
 import { resolveLlmConfig } from "./_core/llm";
-import { downloadStorageBytes, extractGeoPackageLot, extractLocalTerritorialTables, extractSpreadsheetLot, inspectDocxTemplate, renderDocument, signPdfWithSystemStamp } from "./urbanDocs";
+import { downloadStorageBytes, extractGeoPackageLot, extractLocalTerritorialTables, extractSpreadsheetLot, inspectDocxTemplate, loadBundledOfficialTemplate, renderDocument, signPdfWithSystemStamp } from "./urbanDocs";
 import { documentSchemas } from "../shared/documentFields";
 
 const filePayload = z.object({
@@ -297,7 +297,7 @@ export const appRouter = router({
     previewDemo: protectedProcedure.mutation(async ({ ctx }) => {
       const documentType = "certidao_tombamento" as const;
       const demonstration = getDemonstrationRequest(documentType);
-      const rendered = await renderDocument({ documentType, fields: { protocolo: demonstration.protocol, inscricao_imobiliaria: demonstration.enrollment, interessado: demonstration.applicant, objeto: demonstration.description, ...demonstration.fields } });
+      const rendered = await renderDocument({ documentType, templateBytes: await loadBundledOfficialTemplate(documentType), fields: { protocolo: demonstration.protocol, inscricao_imobiliaria: demonstration.enrollment, interessado: demonstration.applicant, objeto: demonstration.description, ...demonstration.fields } });
       const stamp = Date.now();
       const prefix = `urban-docs/${ctx.user.id}/preview-demo`;
       const docx = await storagePut(`${prefix}/${rendered.filename}_${stamp}.docx`, rendered.docxBytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
@@ -309,13 +309,14 @@ export const appRouter = router({
       if (!request) throw new TRPCError({ code: "NOT_FOUND", message: "Solicitação não encontrada." });
       await db.updateRequestStatus(ctx.user.id, request.id, "processing");
       try {
+        const documentType = request.documentType as (typeof documentTypes)[number];
         const template = input.templateId ? await db.getTemplateById(ctx.user.id, input.templateId) : await db.getActiveTemplate(ctx.user.id, request.documentType);
         const selectedTemplate = template ? await db.getFileById(ctx.user.id, template.fileId) : undefined;
-        const templateBytes = selectedTemplate ? await downloadStorageBytes(selectedTemplate.storageKey) : undefined;
+        const templateBytes = selectedTemplate ? await downloadStorageBytes(selectedTemplate.storageKey) : await loadBundledOfficialTemplate(documentType);
         const requestFiles = await db.listFilesForRequest(ctx.user.id, request.id);
         const images = await Promise.all(requestFiles.filter((file) => file.category === "image").slice(0, 4).map(async (file) => ({ name: file.filename, content: await downloadStorageBytes(file.storageKey), mimeType: file.mimeType })));
         const fields = { protocolo: request.protocol, inscricao_imobiliaria: request.enrollment, interessado: request.applicant, objeto: request.description, ...(request.formData as Record<string, unknown> ?? {}), ...(request.extractedData as Record<string, unknown> ?? {}) };
-        const rendered = await renderDocument({ documentType: request.documentType as (typeof documentTypes)[number], fields, templateBytes, images });
+        const rendered = await renderDocument({ documentType, fields, templateBytes, images });
         const docxFile = await storeFile({ userId: ctx.user.id, requestId: request.id, category: "generated_docx", filename: `${rendered.filename}_v${Date.now()}.docx`, mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", content: rendered.docxBytes });
         const pdfFile = await storeFile({ userId: ctx.user.id, requestId: request.id, category: "generated_pdf", filename: `${rendered.filename}_v${Date.now()}.pdf`, mimeType: "application/pdf", content: rendered.pdfBytes });
         const generated = await db.createGeneratedDocument({ requestId: request.id, userId: ctx.user.id, templateId: template?.id, docxFileId: docxFile.id, pdfFileId: pdfFile.id, dataSnapshot: fields });
