@@ -52,5 +52,32 @@ describe("configuração do provedor de IA", () => {
       }),
     );
   });
+
+  it("lança erro claro quando a API retorna resposta sem choices", async () => {
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: "test",
+      created: 0,
+      model: "gemini-3.6-flash",
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(invokeLLM({ messages: [{ role: "user", content: "teste" }] }))
+      .rejects.toThrow("O provedor de IA retornou uma resposta vazia ou malformada");
+  });
+
+  it("lança erro claro quando a API retorna choices vazio", async () => {
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: "test",
+      created: 0,
+      model: "gemini-3.6-flash",
+      choices: [],
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(invokeLLM({ messages: [{ role: "user", content: "teste" }] }))
+      .rejects.toThrow("O provedor de IA retornou uma resposta vazia ou malformada");
+  });
 });
 

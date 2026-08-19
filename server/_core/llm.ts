@@ -440,7 +440,11 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     );
   }
 
-  return (await response.json()) as InvokeResult;
+  const result = (await response.json()) as InvokeResult;
+  if (!result.choices || !Array.isArray(result.choices) || result.choices.length === 0) {
+    throw new Error("O provedor de IA retornou uma resposta vazia ou malformada. Tente novamente ou verifique a configuração do modelo.");
+  }
+  return result;
 }
 
 export type ModelInfo = {
