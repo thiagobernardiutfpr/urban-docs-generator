@@ -20,7 +20,28 @@ O banco será disponibilizado em `127.0.0.1:3306`, com a conexão:
 mysql://urban_docs_app:SENHA@127.0.0.1:3306/urban_docs
 ```
 
-Depois da conclusão:
+Depois da conclusão, configure uma credencial para os recursos de IA. O aplicativo não gera nem fornece chaves automaticamente. Recomenda-se usar o endpoint integrado do Forge com `BUILT_IN_FORGE_API_URL` e `BUILT_IN_FORGE_API_KEY`; alternativamente, o aplicativo aceita uma chave OpenAI compatível em `OPENAI_API_KEY` e, opcionalmente, `OPENAI_API_BASE`.
+
+No PowerShell, edite o arquivo local sem exibir a chave na tela:
+
+```powershell
+Set-Location "C:\Users\thiag\Gerador_de_Documentos"
+notepad .env
+```
+
+Adicione **uma** das configurações abaixo ao `.env` e substitua os valores pelos seus próprios dados:
+
+```text
+# Opção recomendada para o ambiente Manus/Forge
+BUILT_IN_FORGE_API_URL=https://forge.manus.im
+BUILT_IN_FORGE_API_KEY=SUA_CHAVE_FORGE
+
+# Alternativa com API compatível com OpenAI
+OPENAI_API_BASE=https://api.openai.com/v1
+OPENAI_API_KEY=SUA_CHAVE_OPENAI
+```
+
+Não envie a chave pelo chat, não a comite no Git e não a coloque diretamente em um comando que ficará no histórico do PowerShell. Depois de salvar o `.env`, reinicie o servidor:
 
 ```powershell
 pnpm dev
@@ -106,6 +127,8 @@ docker ps
 ```
 
 Se a porta `3306` já estiver ocupada, pare o serviço que a utiliza ou altere o mapeamento no arquivo `docker-compose.local.yml` e a porta correspondente na `DATABASE_URL`.
+
+Se a análise de IA informar que a credencial não está configurada, confirme no `.env` se existe `BUILT_IN_FORGE_API_KEY` ou `OPENAI_API_KEY` e reinicie o servidor. A mensagem antiga `OPENAI_API_KEY is not configured` foi substituída por uma orientação que identifica as duas opções válidas.
 
 Se alguma fonte territorial não for localizada, confirme estas variáveis no `.env`:
 

@@ -212,16 +212,28 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () =>
-  ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-    ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`
-    : "https://forge.manus.im/v1/chat/completions";
-
-const assertApiKey = () => {
-  if (!ENV.forgeApiKey) {
-    throw new Error("OPENAI_API_KEY is not configured");
-  }
+type LlmConfig = {
+  baseUrl: string;
+  apiKey: string;
 };
+
+const resolveLlmConfig = (): LlmConfig => {
+  const forgeApiKey = ENV.forgeApiKey.trim();
+  if (forgeApiKey) {
+    const forgeBaseUrl = (ENV.forgeApiUrl.trim() || "https://forge.manus.im").replace(/\/$/, "");
+    return { baseUrl: `${forgeBaseUrl}/v1`, apiKey: forgeApiKey };
+  }
+
+  const openAiApiKey = process.env.OPENAI_API_KEY?.trim() || "";
+  if (openAiApiKey) {
+    const openAiBaseUrl = (process.env.OPENAI_API_BASE?.trim() || "https://api.openai.com/v1").replace(/\/$/, "");
+    return { baseUrl: openAiBaseUrl, apiKey: openAiApiKey };
+  }
+
+  throw new Error("Credencial de IA não configurada. Defina BUILT_IN_FORGE_API_KEY (recomendado) ou OPENAI_API_KEY; a URL opcional é BUILT_IN_FORGE_API_URL ou OPENAI_API_BASE.");
+};
+
+const resolveApiUrl = (path: string) => `${resolveLlmConfig().baseUrl}${path}`;
 
 const normalizeResponseFormat = ({
   responseFormat,
@@ -343,7 +355,7 @@ const fetchWithBackoff = async (
 };
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
-  assertApiKey();
+  const llmConfig = resolveLlmConfig();
 
   const {
     messages,
@@ -404,11 +416,11 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetchWithBackoff(resolveApiUrl(), {
+  const response = await fetchWithBackoff(resolveApiUrl("/chat/completions"), {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
+      authorization: `Bearer ${llmConfig.apiKey}`,
     },
     body: JSON.stringify(payload),
   });
@@ -439,14 +451,11 @@ export type ModelsResponse = {
 };
 
 export async function listLLMModels(): Promise<ModelsResponse> {
-  assertApiKey();
-
-  const url = ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-    ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/models`
-    : "https://forge.manus.im/v1/models";
+  const llmConfig = resolveLlmConfig();
+  const url = resolveApiUrl("/models");
 
   const response = await fetchWithBackoff(url, {
-    headers: { authorization: `Bearer ${ENV.forgeApiKey}` },
+    headers: { authorization: `Bearer ${llmConfig.apiKey}` },
   });
 
   if (!response.ok) {

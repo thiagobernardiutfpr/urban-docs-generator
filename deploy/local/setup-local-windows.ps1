@@ -34,6 +34,14 @@ function Read-Secret([string]$Prompt) {
   }
 }
 
+function Read-EnvValue([string]$Path, [string]$Name) {
+  if (-not (Test-Path -LiteralPath $Path)) { return "" }
+  $prefix = "$Name="
+  $line = Get-Content -LiteralPath $Path | Where-Object { $_.StartsWith($prefix, [StringComparison]::Ordinal) } | Select-Object -First 1
+  if ($null -eq $line) { return "" }
+  return $line.Substring($prefix.Length)
+}
+
 function Get-ComposeMode {
   if (Get-Command docker -ErrorAction SilentlyContinue) {
     & docker compose version *> $null
@@ -259,6 +267,10 @@ try {
 }
 $jwtSecret = -join ($jwtBytes | ForEach-Object { $_.ToString("x2") })
 $envFile = Join-Path $ProjectRoot ".env"
+$existingForgeUrl = Read-EnvValue $envFile "BUILT_IN_FORGE_API_URL"
+$existingForgeKey = Read-EnvValue $envFile "BUILT_IN_FORGE_API_KEY"
+$existingOpenAiBase = Read-EnvValue $envFile "OPENAI_API_BASE"
+$existingOpenAiKey = Read-EnvValue $envFile "OPENAI_API_KEY"
 
 Write-Step "Configurando o ambiente local"
 $localStorageDirForEnv = ($localStorageDir -replace "\\", "/")
@@ -284,8 +296,13 @@ LOCAL_SPATIAL_SOURCE_NAME=GeoPackage territorial local
 LOCAL_TERRITORIAL_CADASTRO_PATH=$territorialCadastroPathForEnv
 LOCAL_TERRITORIAL_NUMERACAO_PATH=$territorialNumeracaoPathForEnv
 LOCAL_TERRITORIAL_ZONEAMENTO_PATH=$territorialZoneamentoPathForEnv
-"@ | Set-Content -Path $envFile -Encoding UTF8
+  "@ | Set-Content -Path $envFile -Encoding UTF8
+  if ($existingForgeUrl) { Add-Content -Path $envFile -Value "BUILT_IN_FORGE_API_URL=$existingForgeUrl" -Encoding UTF8 }
+  if ($existingForgeKey) { Add-Content -Path $envFile -Value "BUILT_IN_FORGE_API_KEY=$existingForgeKey" -Encoding UTF8 }
+  if ($existingOpenAiBase) { Add-Content -Path $envFile -Value "OPENAI_API_BASE=$existingOpenAiBase" -Encoding UTF8 }
+  if ($existingOpenAiKey) { Add-Content -Path $envFile -Value "OPENAI_API_KEY=$existingOpenAiKey" -Encoding UTF8 }
   Write-Host "Arquivo .env local configurado. Ele é ignorado pelo Git."
+
 } else {
   Write-Host "O .env existente foi mantido. Verifique se DATABASE_URL aponta para 127.0.0.1:3306/urban_docs."
 }
