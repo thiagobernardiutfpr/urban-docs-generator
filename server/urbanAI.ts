@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
 import { readLocalStorageBytes, storageGetSignedUrl } from "./storage";
+import { PDFParse } from "pdf-parse";
 
 const execFileAsync = promisify(execFile);
 
@@ -192,8 +193,17 @@ export async function analyzeUploadedFile(input: FileExtractionInput): Promise<F
     const imageUrl = signedUrl ?? `data:${input.mimeType};base64,${Buffer.from(localBytes ?? []).toString("base64")}`;
     content = [{ type: "text", text: instruction }, { type: "image_url", image_url: { url: imageUrl, detail: "auto" } }];
   } else if (extension === "pdf") {
-    if (!signedUrl) throw new Error("A análise de PDF armazenado localmente requer uma URL pública ou extração local de texto.");
-    content = [{ type: "text", text: instruction }, { type: "file_url", file_url: { url: signedUrl, mime_type: "application/pdf" } }];
+    if (localBytes) {
+      const parser = new PDFParse({ data: Buffer.from(localBytes) });
+      const pdfData = await parser.getText();
+      await parser.destroy();
+      const extractedText = pdfData.text?.slice(0, 14_000) ?? "";
+      content = `${instruction}\nConteúdo extraído do PDF:\n${extractedText || "Não foi possível extrair texto confiável do PDF."}`;
+    } else if (signedUrl) {
+      content = [{ type: "text", text: instruction }, { type: "file_url", file_url: { url: signedUrl, mime_type: "application/pdf" } }];
+    } else {
+      throw new Error("Não foi possível resolver o arquivo PDF para análise.");
+    }
   } else {
     const bytes = localBytes ?? await (async () => {
       if (!signedUrl) throw new Error("Não foi possível resolver o arquivo enviado para análise.");
