@@ -47,7 +47,15 @@ Não envie a chave pelo chat, não a comite no Git e não a coloque diretamente 
 pnpm dev
 ```
 
-Abra `http://localhost:3000/`.
+Abra `http://localhost:3000/`. O acesso público anônimo não exige OAuth. Por isso, a ausência de `OAUTH_SERVER_URL` é esperada no ambiente local quando não for necessário o login administrativo; o servidor exibirá apenas uma mensagem informativa e manterá o aplicativo disponível.
+
+Para habilitar também o login administrativo via OAuth, acrescente ao `.env` as variáveis fornecidas pela configuração do seu ambiente:
+
+```text
+OAUTH_SERVER_URL=https://seu-servidor-oauth
+VITE_OAUTH_PORTAL_URL=https://seu-portal-oauth
+VITE_APP_ID=seu-app-id
+```
 
 Para iniciar o script e a aplicação em sequência, use:
 
