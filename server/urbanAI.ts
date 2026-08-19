@@ -166,7 +166,9 @@ export async function analyzeUrbanInstruction(input: AnalysisInput): Promise<Urb
     ],
     response_format: { type: "json_schema", json_schema: outputSchema },
   });
-  const content = response.choices[0]?.message.content;
+  const choice = response.choices?.[0];
+  if (!choice) throw new Error("A IA não retornou uma análise utilizável.");
+  const content = choice.message?.content;
   if (typeof content !== "string") throw new Error("A IA não retornou uma análise textual utilizável.");
   return parseStructuredAiContent<UrbanAIAnalysis>(content, "a análise da instrução");
 }
@@ -210,7 +212,9 @@ export async function analyzeUploadedFile(input: FileExtractionInput): Promise<F
     ],
     response_format: fileExtractionSchema(input.documentType),
   });
-  const result = response.choices[0]?.message.content;
-  if (typeof result !== "string") throw new Error("A IA não retornou uma extração utilizável.");
+  const choice = response.choices?.[0];
+  if (!choice) throw new Error("A IA não retornou uma extração utilizável.");
+  const result = choice.message?.content;
+  if (typeof result !== "string") throw new Error("A IA não retornou uma extração textual utilizável.");
   return parseStructuredAiContent<FileExtractionAnalysis>(result, "a extração do arquivo");
 }
