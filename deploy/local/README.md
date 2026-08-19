@@ -20,7 +20,7 @@ O banco será disponibilizado em `127.0.0.1:3306`, com a conexão:
 mysql://urban_docs_app:SENHA@127.0.0.1:3306/urban_docs
 ```
 
-Depois da conclusão, configure uma credencial para os recursos de IA. O aplicativo não gera nem fornece chaves automaticamente. O provedor padrão é o **Google Gemini** (gratuito), configurado com `GEMINI_API_KEY`; alternativamente, o aplicativo aceita o endpoint integrado do Forge com `BUILT_IN_FORGE_API_URL` e `BUILT_IN_FORGE_API_KEY`, ou uma chave OpenAI compatível em `OPENAI_API_KEY` e, opcionalmente, `OPENAI_API_BASE`.
+Depois da conclusão, configure uma credencial para os recursos de IA. O aplicativo não gera nem fornece chaves automaticamente. O provedor padrão é o **Google Gemini** (gratuito), configurado com `GEMINI_API_KEY` e usando o modelo `gemini-3.6-flash`; alternativamente, o aplicativo aceita o endpoint integrado do Forge com `BUILT_IN_FORGE_API_URL` e `BUILT_IN_FORGE_API_KEY`, ou uma chave OpenAI compatível em `OPENAI_API_KEY` e, opcionalmente, `OPENAI_API_BASE`.
 
 No PowerShell, edite o arquivo local sem exibir a chave na tela:
 

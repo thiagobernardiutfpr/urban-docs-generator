@@ -228,7 +228,7 @@ export const resolveLlmConfig = (): LlmConfig => {
   const geminiApiKey = process.env.GEMINI_API_KEY?.trim() || "";
   if (geminiApiKey) {
     const geminiBaseUrl = (process.env.GEMINI_API_BASE?.trim() || "https://generativelanguage.googleapis.com/v1beta/openai").replace(/\/$/, "");
-    return { baseUrl: geminiBaseUrl, apiKey: geminiApiKey, defaultModel: "gemini-2.5-flash" };
+    return { baseUrl: geminiBaseUrl, apiKey: geminiApiKey, defaultModel: "gemini-3.6-flash" };
   }
 
   const openAiApiKey = process.env.OPENAI_API_KEY?.trim() || "";
