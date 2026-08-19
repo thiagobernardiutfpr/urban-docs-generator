@@ -11,6 +11,7 @@ import { adminProcedure, protectedProcedure, publicProcedure, roleProcedure, rou
 import { storagePut } from "./storage";
 import { ENV } from "./_core/env";
 import { analyzeUploadedFile, analyzeUrbanInstruction } from "./urbanAI";
+import { resolveLlmConfig } from "./_core/llm";
 import { downloadStorageBytes, extractGeoPackageLot, extractLocalTerritorialTables, extractSpreadsheetLot, inspectDocxTemplate, renderDocument, signPdfWithSystemStamp } from "./urbanDocs";
 import { documentSchemas } from "../shared/documentFields";
 
@@ -115,7 +116,7 @@ export const appRouter = router({
       if (!request || !file || file.requestId !== input.requestId) throw new TRPCError({ code: "NOT_FOUND", message: "Arquivo ou solicitação não encontrados." });
       try {
         const analysis = await analyzeUploadedFile({ documentType: request.documentType as keyof typeof documentSchemas, filename: file.filename, mimeType: file.mimeType, storageKey: file.storageKey, storageUrl: file.storageUrl });
-        const audit = await db.createAiAudit({ userId: ctx.user.id, requestId: request.id, feature: "file_extraction", model: "gpt-5-mini", inputSnapshot: { fileId: file.id, filename: file.filename, mimeType: file.mimeType }, outputSnapshot: analysis });
+        const audit = await db.createAiAudit({ userId: ctx.user.id, requestId: request.id, feature: "file_extraction", model: resolveLlmConfig().defaultModel, inputSnapshot: { fileId: file.id, filename: file.filename, mimeType: file.mimeType }, outputSnapshot: analysis });
         return { analysis, auditId: audit.id, fileId: file.id };
       } catch (error) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error instanceof Error ? `Não foi possível analisar “${file.filename}”: ${error.message}` : "Não foi possível analisar o arquivo." });
@@ -202,7 +203,7 @@ export const appRouter = router({
     })).mutation(async ({ ctx, input }) => {
       try {
         const analysis = await analyzeUrbanInstruction(input);
-        const audit = await db.createAiAudit({ userId: ctx.user.id, feature: "instruction_analysis", model: "gpt-5-mini", inputSnapshot: input, outputSnapshot: analysis });
+        const audit = await db.createAiAudit({ userId: ctx.user.id, feature: "instruction_analysis", model: resolveLlmConfig().defaultModel, inputSnapshot: input, outputSnapshot: analysis });
         return { ...analysis, auditId: audit.id };
       } catch {
         throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Assistente de IA temporariamente indisponível. O preenchimento manual e a emissão do documento continuam disponíveis." });
@@ -210,9 +211,8 @@ export const appRouter = router({
     }),
     chat: protectedProcedure.input(z.object({ messages: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().min(1).max(2500) })).min(1).max(10) })).mutation(async ({ ctx, input }) => {
       try {
-        const { invokeLLM } = await import("./_core/llm");
+        const { invokeLLM, resolveLlmConfig } = await import("./_core/llm");
         const response = await invokeLLM({
-          model: "gpt-5-mini",
           messages: [
             { role: "system", content: "Você é o Assistente UrbanDocs, uma ferramenta de apoio para a equipe municipal. Oriente sobre os recursos do sistema: solicitações, modelos DOCX, referências PDF, dados territoriais, conferência cartográfica, geração e revisão de documentos. Não invente leis, dados cadastrais, zoneamento, resultados de certidões ou conclusões administrativas. Não faça diagnósticos legais. Quando for solicitada uma decisão, indique os dados a conferir e recomende validação por técnico competente. Responda em português brasileiro, com objetividade." },
             ...input.messages,
@@ -220,7 +220,7 @@ export const appRouter = router({
         });
         const answer = response.choices[0]?.message.content;
         if (typeof answer !== "string" || !answer.trim()) throw new Error("A IA não retornou uma resposta utilizável.");
-        const audit = await db.createAiAudit({ userId: ctx.user.id, feature: "global_assistant", model: "gpt-5-mini", inputSnapshot: { messages: input.messages }, outputSnapshot: { answer } });
+        const audit = await db.createAiAudit({ userId: ctx.user.id, feature: "global_assistant", model: resolveLlmConfig().defaultModel, inputSnapshot: { messages: input.messages }, outputSnapshot: { answer } });
         return { answer, auditId: audit.id };
       } catch {
         throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Assistente de IA temporariamente indisponível. O preenchimento manual e a emissão do documento continuam disponíveis." });
@@ -228,9 +228,8 @@ export const appRouter = router({
     }),
     contextual: protectedProcedure.input(z.object({ scope: z.enum(["templates", "spatial_sources", "final_review"]), context: z.string().min(1).max(5000) })).mutation(async ({ ctx, input }) => {
       try {
-        const { invokeLLM } = await import("./_core/llm");
+        const { invokeLLM, resolveLlmConfig } = await import("./_core/llm");
         const response = await invokeLLM({
-          model: "gpt-5-mini",
           messages: [
             { role: "system", content: "Você é o Assistente UrbanDocs. Produza orientação curta e técnica para a equipe municipal, baseada somente no contexto fornecido. Não invente legislação, dados cadastrais, zoneamento, licenças, certidões ou conclusões administrativas. Liste pontos para conferência humana e deixe claro que a sugestão não autoriza emissão." },
             { role: "user", content: `Escopo: ${input.scope}\nContexto: ${input.context}` },
@@ -238,7 +237,7 @@ export const appRouter = router({
         });
         const answer = response.choices[0]?.message.content;
         if (typeof answer !== "string" || !answer.trim()) throw new Error("A IA não retornou uma orientação utilizável.");
-        const audit = await db.createAiAudit({ userId: ctx.user.id, feature: `contextual_${input.scope}`, model: "gpt-5-mini", inputSnapshot: input, outputSnapshot: { answer } });
+        const audit = await db.createAiAudit({ userId: ctx.user.id, feature: `contextual_${input.scope}`, model: resolveLlmConfig().defaultModel, inputSnapshot: input, outputSnapshot: { answer } });
         return { answer, auditId: audit.id };
       } catch {
         throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Assistente de IA temporariamente indisponível. O preenchimento manual e a emissão do documento continuam disponíveis." });

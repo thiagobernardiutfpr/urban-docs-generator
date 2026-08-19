@@ -215,22 +215,29 @@ const normalizeToolChoice = (
 type LlmConfig = {
   baseUrl: string;
   apiKey: string;
+  defaultModel: string;
 };
 
-const resolveLlmConfig = (): LlmConfig => {
+export const resolveLlmConfig = (): LlmConfig => {
   const forgeApiKey = ENV.forgeApiKey.trim();
   if (forgeApiKey) {
     const forgeBaseUrl = (ENV.forgeApiUrl.trim() || "https://forge.manus.im").replace(/\/$/, "");
-    return { baseUrl: `${forgeBaseUrl}/v1`, apiKey: forgeApiKey };
+    return { baseUrl: `${forgeBaseUrl}/v1`, apiKey: forgeApiKey, defaultModel: "gpt-5-mini" };
+  }
+
+  const geminiApiKey = process.env.GEMINI_API_KEY?.trim() || "";
+  if (geminiApiKey) {
+    const geminiBaseUrl = (process.env.GEMINI_API_BASE?.trim() || "https://generativelanguage.googleapis.com/v1beta/openai").replace(/\/$/, "");
+    return { baseUrl: geminiBaseUrl, apiKey: geminiApiKey, defaultModel: "gemini-2.5-flash" };
   }
 
   const openAiApiKey = process.env.OPENAI_API_KEY?.trim() || "";
   if (openAiApiKey) {
     const openAiBaseUrl = (process.env.OPENAI_API_BASE?.trim() || "https://api.openai.com/v1").replace(/\/$/, "");
-    return { baseUrl: openAiBaseUrl, apiKey: openAiApiKey };
+    return { baseUrl: openAiBaseUrl, apiKey: openAiApiKey, defaultModel: "gpt-5-mini" };
   }
 
-  throw new Error("Credencial de IA não configurada. Defina BUILT_IN_FORGE_API_KEY (recomendado) ou OPENAI_API_KEY; a URL opcional é BUILT_IN_FORGE_API_URL ou OPENAI_API_BASE.");
+  throw new Error("Credencial de IA não configurada. Defina BUILT_IN_FORGE_API_KEY (recomendado), GEMINI_API_KEY ou OPENAI_API_KEY; a URL opcional é BUILT_IN_FORGE_API_URL, GEMINI_API_BASE ou OPENAI_API_BASE.");
 };
 
 const resolveApiUrl = (path: string) => `${resolveLlmConfig().baseUrl}${path}`;
@@ -377,9 +384,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     messages: messages.map(normalizeMessage),
   };
 
-  if (model) {
-    payload.model = model;
-  }
+  payload.model = model ?? llmConfig.defaultModel;
 
   if (tools && tools.length > 0) {
     payload.tools = tools;

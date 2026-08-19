@@ -269,6 +269,8 @@ $jwtSecret = -join ($jwtBytes | ForEach-Object { $_.ToString("x2") })
 $envFile = Join-Path $ProjectRoot ".env"
 $existingForgeUrl = Read-EnvValue $envFile "BUILT_IN_FORGE_API_URL"
 $existingForgeKey = Read-EnvValue $envFile "BUILT_IN_FORGE_API_KEY"
+$existingGeminiKey = Read-EnvValue $envFile "GEMINI_API_KEY"
+$existingGeminiBase = Read-EnvValue $envFile "GEMINI_API_BASE"
 $existingOpenAiBase = Read-EnvValue $envFile "OPENAI_API_BASE"
 $existingOpenAiKey = Read-EnvValue $envFile "OPENAI_API_KEY"
 
@@ -299,6 +301,8 @@ LOCAL_TERRITORIAL_ZONEAMENTO_PATH=$territorialZoneamentoPathForEnv
   "@ | Set-Content -Path $envFile -Encoding UTF8
   if ($existingForgeUrl) { Add-Content -Path $envFile -Value "BUILT_IN_FORGE_API_URL=$existingForgeUrl" -Encoding UTF8 }
   if ($existingForgeKey) { Add-Content -Path $envFile -Value "BUILT_IN_FORGE_API_KEY=$existingForgeKey" -Encoding UTF8 }
+  if ($existingGeminiKey) { Add-Content -Path $envFile -Value "GEMINI_API_KEY=$existingGeminiKey" -Encoding UTF8 }
+  if ($existingGeminiBase) { Add-Content -Path $envFile -Value "GEMINI_API_BASE=$existingGeminiBase" -Encoding UTF8 }
   if ($existingOpenAiBase) { Add-Content -Path $envFile -Value "OPENAI_API_BASE=$existingOpenAiBase" -Encoding UTF8 }
   if ($existingOpenAiKey) { Add-Content -Path $envFile -Value "OPENAI_API_KEY=$existingOpenAiKey" -Encoding UTF8 }
   Write-Host "Arquivo .env local configurado. Ele é ignorado pelo Git."

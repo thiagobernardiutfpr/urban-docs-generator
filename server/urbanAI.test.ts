@@ -3,8 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   invokeLLM: vi.fn(),
   createAiAudit: vi.fn(),
+  resolveLlmConfig: vi.fn(() => ({ baseUrl: "https://api.example.test/v1", apiKey: "test-key", defaultModel: "gpt-5-mini" })),
 }));
-vi.mock("./_core/llm", () => ({ invokeLLM: mocks.invokeLLM }));
+vi.mock("./_core/llm", () => ({ invokeLLM: mocks.invokeLLM, resolveLlmConfig: mocks.resolveLlmConfig }));
 vi.mock("./db", () => ({ createAiAudit: mocks.createAiAudit }));
 
 const invokeLLM = mocks.invokeLLM;
@@ -23,7 +24,7 @@ describe("assistente de IA urbanístico", () => {
     const result = await analyzeUrbanInstruction({ documentType: "certidao_tombamento", protocol: "2026/001", fields: { endereco: "Rua A", resultado_tombamento: "Em análise" } });
     expect(result.missingFields).toContain("Zoneamento");
     expect(result.reviewNotice).toBe("Revisão técnica obrigatória.");
-    expect(invokeLLM).toHaveBeenCalledWith(expect.objectContaining({ model: "gpt-5-mini", response_format: expect.objectContaining({ type: "json_schema" }) }));
+    expect(invokeLLM).toHaveBeenCalledWith(expect.objectContaining({ response_format: expect.objectContaining({ type: "json_schema" }) }));
   });
 
   it("responde pelo assistente global usando contexto institucional limitado", async () => {
@@ -31,7 +32,7 @@ describe("assistente de IA urbanístico", () => {
     const ctx: TrpcContext = { user: { id: 1, openId: "admin", email: "admin@exemplo.gov.br", name: "Admin", loginMethod: "manus", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: {} as TrpcContext["req"], res: {} as TrpcContext["res"] };
     const result = await appRouter.createCaller(ctx).ai.chat({ messages: [{ role: "user", content: "Como reviso uma emissão?" }] });
     expect(result.answer).toContain("campos obrigatórios");
-    expect(invokeLLM).toHaveBeenCalledWith(expect.objectContaining({ model: "gpt-5-mini" }));
+    expect(invokeLLM).toHaveBeenCalledWith(expect.objectContaining({ messages: expect.any(Array) }));
   });
 
   it("mantém o fluxo documental disponível quando o serviço de IA retorna indisponibilidade", async () => {

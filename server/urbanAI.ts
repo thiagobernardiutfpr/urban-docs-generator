@@ -1,4 +1,4 @@
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM, resolveLlmConfig } from "./_core/llm";
 import { documentTypeLabels, type DocumentType } from "../shared/urbanDocs";
 import { documentSchemas } from "../shared/documentFields";
 import PizZip from "pizzip";
@@ -154,7 +154,6 @@ function cleanInput(input: AnalysisInput) {
 export async function analyzeUrbanInstruction(input: AnalysisInput): Promise<UrbanAIAnalysis> {
   const data = cleanInput(input);
   const response = await invokeLLM({
-    model: "gpt-5-mini",
     messages: [
       {
         role: "system",
@@ -205,7 +204,6 @@ export async function analyzeUploadedFile(input: FileExtractionInput): Promise<F
     content = `${instruction}\n${dwgNotice}\nConteúdo extraído do arquivo:\n${extractedText || "Não foi possível extrair texto confiável."}`;
   }
   const response = await invokeLLM({
-    model: "gpt-5-mini",
     messages: [
       { role: "system", content: "Você é um extrator documental municipal. Nunca faça inferências além da evidência apresentada e sempre exija revisão humana." },
       { role: "user", content: content as never },

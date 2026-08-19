@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   updateRequest: vi.fn(),
   updateRequestStatus: vi.fn(),
   analyzeUploadedFile: vi.fn(),
+  resolveLlmConfig: vi.fn(() => ({ baseUrl: "https://api.example.test/v1", apiKey: "test-key", defaultModel: "gpt-5-mini" })),
 }));
 
 vi.mock("./db", () => ({
@@ -19,6 +20,7 @@ vi.mock("./db", () => ({
 }));
 vi.mock("./storage", () => ({ storagePut: vi.fn() }));
 vi.mock("./urbanAI", () => ({ analyzeUrbanInstruction: vi.fn(), analyzeUploadedFile: mocks.analyzeUploadedFile }));
+vi.mock("./_core/llm", () => ({ resolveLlmConfig: mocks.resolveLlmConfig }));
 vi.mock("./urbanDocs", () => ({ downloadStorageBytes: vi.fn(), extractGeoPackageLot: vi.fn(), extractSpreadsheetLot: vi.fn(), inspectDocxTemplate: vi.fn(), renderDocument: vi.fn(), signPdfWithSystemStamp: vi.fn() }));
 
 import { appRouter } from "./routers";

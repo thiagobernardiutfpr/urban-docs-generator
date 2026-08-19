@@ -20,7 +20,7 @@ O banco será disponibilizado em `127.0.0.1:3306`, com a conexão:
 mysql://urban_docs_app:SENHA@127.0.0.1:3306/urban_docs
 ```
 
-Depois da conclusão, configure uma credencial para os recursos de IA. O aplicativo não gera nem fornece chaves automaticamente. Recomenda-se usar o endpoint integrado do Forge com `BUILT_IN_FORGE_API_URL` e `BUILT_IN_FORGE_API_KEY`; alternativamente, o aplicativo aceita uma chave OpenAI compatível em `OPENAI_API_KEY` e, opcionalmente, `OPENAI_API_BASE`.
+Depois da conclusão, configure uma credencial para os recursos de IA. O aplicativo não gera nem fornece chaves automaticamente. O provedor padrão é o **Google Gemini** (gratuito), configurado com `GEMINI_API_KEY`; alternativamente, o aplicativo aceita o endpoint integrado do Forge com `BUILT_IN_FORGE_API_URL` e `BUILT_IN_FORGE_API_KEY`, ou uma chave OpenAI compatível em `OPENAI_API_KEY` e, opcionalmente, `OPENAI_API_BASE`.
 
 No PowerShell, edite o arquivo local sem exibir a chave na tela:
 
@@ -32,7 +32,10 @@ notepad .env
 Adicione **uma** das configurações abaixo ao `.env` e substitua os valores pelos seus próprios dados:
 
 ```text
-# Opção recomendada para o ambiente Manus/Forge
+# Opção padrão: Google Gemini (gratuito)
+GEMINI_API_KEY=SUA_CHAVE_GEMINI
+
+# Alternativa para o ambiente Manus/Forge
 BUILT_IN_FORGE_API_URL=https://forge.manus.im
 BUILT_IN_FORGE_API_KEY=SUA_CHAVE_FORGE
 
@@ -40,6 +43,8 @@ BUILT_IN_FORGE_API_KEY=SUA_CHAVE_FORGE
 OPENAI_API_BASE=https://api.openai.com/v1
 OPENAI_API_KEY=SUA_CHAVE_OPENAI
 ```
+
+Para obter uma chave gratuita do Google Gemini, acesse [Google AI Studio](https://aistudio.google.com), faça login com sua conta Google e clique em **Get API Key** → **Create API Key**.
 
 Não envie a chave pelo chat, não a comite no Git e não a coloque diretamente em um comando que ficará no histórico do PowerShell. Depois de salvar o `.env`, reinicie o servidor:
 
@@ -136,7 +141,7 @@ docker ps
 
 Se a porta `3306` já estiver ocupada, pare o serviço que a utiliza ou altere o mapeamento no arquivo `docker-compose.local.yml` e a porta correspondente na `DATABASE_URL`.
 
-Se a análise de IA informar que a credencial não está configurada, confirme no `.env` se existe `BUILT_IN_FORGE_API_KEY` ou `OPENAI_API_KEY` e reinicie o servidor. A mensagem antiga `OPENAI_API_KEY is not configured` foi substituída por uma orientação que identifica as duas opções válidas.
+Se a análise de IA informar que a credencial não está configurada, confirme no `.env` se existe `GEMINI_API_KEY`, `BUILT_IN_FORGE_API_KEY` ou `OPENAI_API_KEY` e reinicie o servidor. A mensagem antiga `OPENAI_API_KEY is not configured` foi substituída por uma orientação que identifica as três opções válidas.
 
 Se alguma fonte territorial não for localizada, confirme estas variáveis no `.env`:
 
