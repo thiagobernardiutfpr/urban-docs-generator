@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("./_core/llm", () => ({ invokeLLM: mocks.invokeLLM }));
 
-import { analyzeUploadedFile } from "./urbanAI";
+import { analyzeUploadedFile, analyzeUrbanInstruction } from "./urbanAI";
 import { resolveLocalStoragePath, storagePut } from "./storage";
 
 const root = path.join(process.cwd(), "tmp", "urban-ai-local-storage-test");
@@ -42,6 +42,12 @@ describe("análise de arquivos no armazenamento local", () => {
 
     expect(result.summary).toBe("Arquivo lido");
     expect(mocks.invokeLLM).toHaveBeenCalledOnce();
+  });
+
+  it("converte indisponibilidade textual do provedor em erro acionável", async () => {
+    mocks.invokeLLM.mockResolvedValue({ choices: [{ message: { content: "Service Unavailable" } }] });
+
+    await expect(analyzeUrbanInstruction({ documentType: "certidao_uso_ocupacao_solo" })).rejects.toThrow("O provedor de IA está indisponível no momento");
   });
 
   it("analisa DOCX legado usando a URL local registrada na base", async () => {

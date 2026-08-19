@@ -121,6 +121,22 @@ function extractDwgText(bytes: Uint8Array) {
   return readable.filter((part) => /[A-Za-zÀ-ÿ]/.test(part)).slice(0, 350).join("\n").slice(0, 14_000);
 }
 
+function parseStructuredAiContent<T>(content: string, operation: string): T {
+  const normalized = content.trim();
+  if (/service unavailable|temporarily unavailable/i.test(normalized)) {
+    throw new Error("O provedor de IA está indisponível no momento. Tente novamente mais tarde ou use o preenchimento manual.");
+  }
+
+  const unfenced = normalized.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  try {
+    const parsed = JSON.parse(unfenced) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Resposta estruturada inválida");
+    return parsed as T;
+  } catch {
+    throw new Error(`A IA retornou uma resposta inválida para ${operation}. Tente novamente mais tarde.`);
+  }
+}
+
 function cleanInput(input: AnalysisInput) {
   return {
     tipo: documentTypeLabels[input.documentType],
@@ -153,7 +169,7 @@ export async function analyzeUrbanInstruction(input: AnalysisInput): Promise<Urb
   });
   const content = response.choices[0]?.message.content;
   if (typeof content !== "string") throw new Error("A IA não retornou uma análise textual utilizável.");
-  return JSON.parse(content) as UrbanAIAnalysis;
+  return parseStructuredAiContent<UrbanAIAnalysis>(content, "a análise da instrução");
 }
 
 export async function analyzeUploadedFile(input: FileExtractionInput): Promise<FileExtractionAnalysis> {
@@ -198,5 +214,5 @@ export async function analyzeUploadedFile(input: FileExtractionInput): Promise<F
   });
   const result = response.choices[0]?.message.content;
   if (typeof result !== "string") throw new Error("A IA não retornou uma extração utilizável.");
-  return JSON.parse(result) as FileExtractionAnalysis;
+  return parseStructuredAiContent<FileExtractionAnalysis>(result, "a extração do arquivo");
 }
